@@ -18,10 +18,16 @@ public struct PrismSettingsView: View {
     let onRescanSources: () -> Void
     let onStartAITagging: () -> Void
     let onUndoTransfer: (TransferRecord) -> Void
-    let onFactoryReset: () -> Void
+    let onFactoryReset: (Bool, Bool) -> Void
     @State private var jevKey = ""
     @State private var showJevHelp = false
+    @State private var confirm: SiftConfirm?
+    @State private var showResetChoices = false
+    @State private var resetLibrary = false
+    @State private var resetSettings = false
+    @State private var showPageHelp = false
     @State private var jevSaved = false
+    @ObservedObject private var updates = SiftUpdateCenter.shared
 
     public init(
         folders: [FolderBookmark],
@@ -35,7 +41,7 @@ public struct PrismSettingsView: View {
         onRescanSources: @escaping () -> Void,
         onStartAITagging: @escaping () -> Void,
         onUndoTransfer: @escaping (TransferRecord) -> Void,
-        onFactoryReset: @escaping () -> Void
+        onFactoryReset: @escaping (Bool, Bool) -> Void
     ) {
         self.folders = folders
         self.destinations = destinations
@@ -59,6 +65,8 @@ public struct PrismSettingsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
                     header
+
+                    updatesSection
 
                     PrismSettingsSection(
                         title: "Source folders",
@@ -109,7 +117,7 @@ public struct PrismSettingsView: View {
                                 VStack(alignment: .leading, spacing: 10) {
                                     Text("How Jev is used")
                                         .font(.headline)
-                                    Text("With a key saved, Return in search can ask Jev which screen to open, or which of a short list fits best. A document is described by tags for its type, such as spreadsheet, multi-sheet, slides, or meeting. An organization preview can ask which existing folder fits a small group. The query, filenames, and those tags go out. Photos, videos, audio, document text, and the files never do. If Jev is unsure, or no key is saved, Sift keeps the local result.")
+                                    Text("With a key saved, indexing a document asks Jev once which labels fit. Those labels come from the opening lines, the headings, the sheet names, and the column headers. Return in search can still ask which screen to open, or which of a short list fits best. The file itself stays on this Mac. No key, or a failed answer, keeps the labels taken from the file.")
                                     Text("Create or copy an API key from your TypeSafe account, paste it below, then choose Save to Keychain.")
                                     Link("Open TypeSafe documentation", destination: URL(string: "https://docs.typesafe.ai")!)
                                 }
@@ -130,9 +138,15 @@ public struct PrismSettingsView: View {
                             .disabled(jevKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                             if jevSaved {
                                 Button("Remove") {
-                                    JevCredential.save("")
-                                    jevSaved = false
-                                    jevKey = ""
+                                    confirm = SiftConfirm(
+                                        title: "Remove the Jev key?",
+                                        message: "The key is deleted from the Keychain. Routing and document labels then stay on this Mac. You can paste a key again later.",
+                                        confirmTitle: "Remove key"
+                                    ) {
+                                        JevCredential.save("")
+                                        jevSaved = false
+                                        jevKey = ""
+                                    }
                                 }
                             }
                         }
@@ -209,17 +223,37 @@ public struct PrismSettingsView: View {
                             settingsActionButton(
                                 "Rescan all source folders",
                                 icon: "arrow.clockwise",
-                                action: onRescanSources
+                                action: {
+                                    confirm = SiftConfirm(
+                                        title: "Rescan the saved folders?",
+                                        message: "Sift walks the folders you already saved and updates the catalog. Files stay where they are.",
+                                        confirmTitle: "Rescan",
+                                        destructive: false,
+                                        run: onRescanSources
+                                    )
+                                }
                             )
                             settingsActionButton(
                                 "Start AI tagging",
                                 icon: "sparkles",
-                                action: onStartAITagging
+                                action: {
+                                    confirm = SiftConfirm(
+                                        title: "Start tagging?",
+                                        message: "Sift reads photos on this Mac. For documents it reads the opening, the headings, and the column names. With a Jev key, that short outline is sent once per file. The files stay where they are.",
+                                        confirmTitle: "Start tagging",
+                                        destructive: false,
+                                        run: onStartAITagging
+                                    )
+                                }
                             )
                             settingsActionButton(
                                 "Reset library & settings…",
                                 icon: "trash",
-                                action: onFactoryReset
+                                action: {
+                                    resetLibrary = false
+                                    resetSettings = false
+                                    showResetChoices = true
+                                }
                             )
                         }
                     }
@@ -239,7 +273,27 @@ public struct PrismSettingsView: View {
             }
             .scrollContentBackground(.hidden)
         }
-        .onAppear { jevSaved = JevCredential.isConfigured }
+        .onAppear {
+            jevSaved = JevCredential.isConfigured
+            Task { await updates.checkIfNeeded() }
+        }
+        .siftConfirming($confirm)
+        .sheet(isPresented: $showResetChoices) {
+            SiftResetSheet(
+                resetLibrary: $resetLibrary,
+                resetSettings: $resetSettings,
+                onCancel: { showResetChoices = false },
+                onConfirm: {
+                    let library = resetLibrary
+                    let settings = resetSettings
+                    showResetChoices = false
+                    onFactoryReset(library, settings)
+                }
+            )
+        }
+        .sheet(isPresented: $showPageHelp) {
+            SiftHelpView(mode: "settings", onClose: { showPageHelp = false })
+        }
         .preferredColorScheme(.dark)
         .tint(PrismTheme.accent)
         .frame(width: 560)
@@ -247,6 +301,60 @@ public struct PrismSettingsView: View {
         #if os(macOS)
         .background(SettingsWindowChrome())
         #endif
+    }
+
+    private var updatesSection: some View {
+        PrismSettingsSection(
+            title: SiftUpdateCenter.text("Updates", "Mises à jour"),
+            footer: SiftUpdateCenter.text(
+                "Sift asks GitHub once a day. Download the latest DMG to update. Your catalog stays on this Mac.",
+                "Sift interroge GitHub une fois par jour. Téléchargez le dernier DMG pour mettre à jour. Le catalogue reste sur ce Mac."
+            )
+        ) {
+            HStack(spacing: 10) {
+                if updates.isChecking {
+                    ProgressView()
+                        .controlSize(.small)
+                } else if updates.updateAvailable {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .foregroundStyle(PrismTheme.accent)
+                } else if updates.lastError != nil && !updates.noReleaseYet {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                } else {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Sift \(updates.installedVersion)")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(PrismTheme.textPrimary)
+                    Text(updates.statusText)
+                        .font(.caption)
+                        .foregroundStyle(PrismTheme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+            }
+
+            HStack(spacing: 10) {
+                Button(SiftUpdateCenter.text("Check for updates", "Rechercher des mises à jour")) {
+                    Task { await updates.check(force: true) }
+                }
+                .buttonStyle(.bordered)
+                .disabled(updates.isChecking)
+                .prismClickable()
+
+                if updates.updateAvailable {
+                    Button(SiftUpdateCenter.text("Download update", "Télécharger la mise à jour")) {
+                        updates.openDownload()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(PrismTheme.accent)
+                    .prismClickable()
+                }
+            }
+        }
     }
 
     private var header: some View {
@@ -258,6 +366,15 @@ public struct PrismSettingsView: View {
                 Text("Sift")
                     .font(.title2.weight(.bold))
                     .foregroundStyle(PrismTheme.textPrimary)
+                Spacer()
+                Button {
+                    showPageHelp = true
+                } label: {
+                    Image(systemName: "questionmark.circle")
+                }
+                .buttonStyle(.bordered)
+                .help("Help for settings")
+                .prismClickable()
             }
             Text("Sources, destinations, and how files are organized.")
                 .font(.subheadline)
@@ -365,7 +482,15 @@ public struct PrismSettingsView: View {
             }
             Spacer()
             if !record.isUndone {
-                Button("Undo") { onUndoTransfer(record) }
+                Button("Undo") {
+                    confirm = SiftConfirm(
+                        title: "Undo this transfer?",
+                        message: "Sift tries to put the file back. That only works if the file is still at the destination.",
+                        confirmTitle: "Undo transfer"
+                    ) {
+                        onUndoTransfer(record)
+                    }
+                }
                     .font(.caption.weight(.semibold))
                     .prismClickable()
             } else {

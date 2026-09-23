@@ -20,6 +20,7 @@ public struct IndexDock: View {
     let onCancel: () -> Void
     let onContinueIndexing: () -> Void
     let onResetAI: () -> Void
+    @State private var confirm: SiftConfirm?
     let onDismissStatus: () -> Void
     @State private var isExpanded = false
 
@@ -156,13 +157,29 @@ public struct IndexDock: View {
                         "Stop",
                         icon: "stop.fill",
                         help: "Stop here and keep every file already cataloged",
-                        action: onStop
+                        action: {
+                            confirm = SiftConfirm(
+                                title: "Stop indexing?",
+                                message: "Indexing stops here. Files already in the catalog stay.",
+                                confirmTitle: "Stop",
+                                destructive: false,
+                                run: onStop
+                            )
+                        }
                     )
                     transportButton(
                         "Cancel",
                         icon: "xmark",
                         help: "Cancel this phase. Cataloged files remain available",
-                        action: onCancel
+                        action: {
+                            confirm = SiftConfirm(
+                                title: "Cancel this phase?",
+                                message: "This phase stops. Files already cataloged remain available.",
+                                confirmTitle: "Cancel phase",
+                                destructive: false,
+                                run: onCancel
+                            )
+                        }
                     )
                     Spacer()
                 }
@@ -199,6 +216,7 @@ public struct IndexDock: View {
         }
         .shadow(color: PrismTheme.accent.opacity(isIdle ? 0 : 0.18), radius: 22, y: 10)
         .shadow(color: .black.opacity(0.28), radius: 18, y: 8)
+        .siftConfirming($confirm)
     }
 
     private var progressOrb: some View {
@@ -293,7 +311,15 @@ public struct IndexDock: View {
             .prismClickable()
 
             if sourceFolderCount > 0 {
-                Button(action: onRescanSources) {
+                Button {
+                    confirm = SiftConfirm(
+                        title: "Update the catalog?",
+                        message: "Sift walks the saved folders again. Files stay where they are.",
+                        confirmTitle: "Update",
+                        destructive: false,
+                        run: onRescanSources
+                    )
+                } label: {
                     Label("Update", systemImage: "arrow.clockwise")
                         .font(.caption.weight(.semibold))
                         .padding(.horizontal, 4)

@@ -30,6 +30,8 @@ public enum JevAdvisor {
     public static let routeConfidence = 0.72
     public static let rerankConfidence = 0.66
     public static let folderConfidence = 0.70
+    /// A heading, opening line, or column name at or above this score stays on the file.
+    public static let labelConfidence = 0.50
     public static let folders = ["Photos", "Videos", "Music & Audio", "Screenshots & Documents"]
     /// A large local group is not retargeted by one remote guess.
     public static let maxGroupSize = 40
@@ -156,6 +158,36 @@ public enum JevAdvisor {
             ) else { return nil }
             guard let folder = acceptedFolder(choice), folder != localFolder else { return nil }
             return folder
+        } catch {
+            return nil
+        }
+    }
+
+    /// Judges labels already taken from the file. Nil means the call did not happen, so the local labels stay.
+    /// A call that accepts none also keeps the local labels: the outline is still the description of the file.
+    public static func keepDocumentLabels(
+        fileName: String,
+        kind: String,
+        opening: String,
+        labels: [String]
+    ) async -> [String]? {
+        let slice = Array(labels.prefix(12))
+        guard !slice.isEmpty, JevCredential.isConfigured else { return nil }
+        var questions: [String: String] = [:]
+        for (index, label) in slice.enumerated() {
+            questions["l\(index)"] = "The label is \"\(label)\". It was taken from a heading, an opening line, a sheet name, or a column name. Is it a useful description of what this file is about?"
+        }
+        let sample = String(opening.prefix(400))
+        do {
+            guard let scores = try await JevClient.askNouls(
+                state: "File: \(fileName). Kind: \(kind). Opening: \(sample)",
+                questions: questions
+            ) else { return nil }
+            let kept = slice.enumerated().compactMap { index, label -> String? in
+                guard let score = scores["l\(index)"], score >= labelConfidence else { return nil }
+                return label
+            }
+            return kept.isEmpty ? slice : kept
         } catch {
             return nil
         }

@@ -11,12 +11,11 @@ final class SiftIslandController {
     private var installQueued = false
     private let offsetKey = "sift.notchAlongOffset"
     private let edgeKey = "sift.notchEdge"
-    private let wishKey = "sift.notchWish"
     private var retracted = false
+    private var pointerHolding = false
     private var windowObservers: [NSObjectProtocol] = []
-    private var notchChrome: NotchChrome?
-    /// Wide enough that the pull tab stays fully on screen.
-    private let tuckedReveal: CGFloat = 32
+    private var mouseMonitor: Any?
+    private var globalMouseMonitor: Any?
 
     func install(
         jobs: BackgroundJobCenter,
@@ -92,7 +91,6 @@ final class SiftIslandController {
         onQuit: @escaping () -> Void
     ) {
         guard panel == nil else { return }
-        notchChrome = chrome
         let root = SiftIslandView(
             jobs: jobs,
             chrome: chrome,
@@ -121,15 +119,9 @@ final class SiftIslandController {
             },
             onSetAlongOffset: { [weak self] value in
                 self?.setAlongOffset(value)
-            },
-            onPullEnded: { [weak self] travel in
-                self?.userPulled(travel)
             }
         )
         let hosting = SiftNotchHostingView(rootView: root)
-        hosting.onEdgePull = { [weak self] travel in
-            self?.userPulled(travel)
-        }
         let panel = makePanel()
         panel.contentView = hosting
         self.hosting = hosting
@@ -140,8 +132,10 @@ final class SiftIslandController {
         }
         applyFrame()
         panel.orderFrontRegardless()
+        UserDefaults.standard.removeObject(forKey: "sift.notchWish")
         startWatchingWindows()
-        refreshWish()
+        startWatchingMouse()
+        refreshVisibility()
     }
 
     private func startWatchingWindows() {
@@ -162,47 +156,61 @@ final class SiftIslandController {
                     Task { @MainActor in
                         guard let self else { return }
                         if let window, window === self.panel { return }
-                        self.refreshWish()
+                        self.refreshVisibility()
                     }
                 }
             )
         }
     }
 
-    /// `auto` follows the app window. `open` and `closed` are the user's drag.
-    private func userPulled(_ travel: CGFloat) {
-        if travel < -28 {
-            UserDefaults.standard.set("open", forKey: wishKey)
-        } else if travel > 28 {
-            UserDefaults.standard.set("closed", forKey: wishKey)
+    private func startWatchingMouse() {
+        guard mouseMonitor == nil else { return }
+        for window in NSApp.windows where window.level == .normal {
+            window.acceptsMouseMovedEvents = true
         }
-        refreshWish()
+        let note: (NSEvent) -> Void = { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.notePointer()
+            }
+        }
+        mouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged]) { event in
+            note(event)
+            return event
+        }
+        globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved]) { event in
+            note(event)
+        }
     }
 
-    private func refreshWish() {
-        let wish = UserDefaults.standard.string(forKey: wishKey) ?? "auto"
-        let next: Bool
-        switch wish {
-        case "open": next = false
-        case "closed": next = true
-        default: next = windowCoversRail()
-        }
-        let covers = windowCoversRail()
-        notchChrome?.windowCoversNotch = covers
-        notchChrome?.isTucked = next
-        hosting?.acceptsEdgePull = next || covers
-        hosting?.tuckedForPull = next
-        if covers {
-            panel?.orderFrontRegardless()
-        }
+    /// Hidden while the app window covers the rail. Pushing the pointer to the right edge brings it back.
+    private func notePointer() {
+        let mouse = NSEvent.mouseLocation
+        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(mouse) }) ?? screenForNotch() else { return }
+        let atRightEdge = screen.frame.maxX - mouse.x <= 2
+            && mouse.y >= screen.frame.minY
+            && mouse.y <= screen.frame.maxY
+        let overRail = openRailRect(on: screen).insetBy(dx: -10, dy: -8).contains(mouse)
+        let overCard = hosting?.showsCard == true && panel?.frame.insetBy(dx: -8, dy: -8).contains(mouse) == true
+        let holding = atRightEdge || (!retracted && (overRail || overCard))
+        guard holding != pointerHolding else { return }
+        pointerHolding = holding
+        refreshVisibility()
+    }
+
+    private func refreshVisibility() {
+        let next = windowCoversRail() && !pointerHolding
         guard next != retracted else { return }
         retracted = next
         applyFrame(animated: true)
         panel?.orderFrontRegardless()
     }
 
+    private func screenForNotch() -> NSScreen? {
+        NSScreen.main
+    }
+
     private func windowCoversRail() -> Bool {
-        guard let screen = NSScreen.main else { return false }
+        guard let screen = screenForNotch() else { return false }
         let rail = openRailRect(on: screen)
         for window in NSApp.windows where window !== panel && window.isVisible && !window.isMiniaturized {
             guard window.level == .normal else { continue }
@@ -242,14 +250,14 @@ final class SiftIslandController {
     private func applyFrame(animated: Bool = false) {
         guard let panel else { return }
         let size = NotchRailMetrics.panelSize
-        guard let screen = NSScreen.main else { return }
+        guard let screen = screenForNotch() else { return }
         let bezel = screen.frame
         let visible = screen.visibleFrame
         let maxShift = max(0, (visible.height - size.height) / 2 - 8)
         let shift = min(maxShift, max(-maxShift, alongOffset))
         var y = visible.midY - size.height / 2 - shift
         y = min(max(y, visible.minY + 4), visible.maxY - size.height - 4)
-        let tucked = retracted ? size.width - tuckedReveal : 0
+        let tucked = retracted ? size.width : 0
         let x = edge == "left" ? bezel.minX - tucked : bezel.maxX - size.width + tucked
         let rect = NSRect(x: x, y: y, width: size.width, height: size.height)
         guard panel.frame != rect else { return }
@@ -265,6 +273,7 @@ final class SiftIslandController {
             defer: false
         )
         panel.isFloatingPanel = true
+        panel.isMovable = false
         panel.level = .statusBar
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         panel.backgroundColor = .clear
@@ -281,48 +290,12 @@ final class SiftIslandController {
 /// pointer. While no card is shown, the transparent area passes clicks through.
 private final class SiftNotchHostingView: NSHostingView<SiftIslandView> {
     var showsCard = false
-    var onEdgePull: ((CGFloat) -> Void)?
-    var acceptsEdgePull = false
-    var tuckedForPull = false
     private var railCursorArea: NSTrackingArea?
-    private var pullStart: NSPoint?
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         let railStart = bounds.maxX - NotchRailMetrics.depth
-        let onPullTab = point.x >= bounds.maxX - 32
-        guard showsCard || point.x >= railStart || onPullTab else { return nil }
+        guard showsCard || point.x >= railStart else { return nil }
         return super.hitTest(point)
-    }
-
-    override func mouseDown(with event: NSEvent) {
-        let point = convert(event.locationInWindow, from: nil)
-        if acceptsEdgePull, point.x >= bounds.maxX - 32 {
-            pullStart = NSEvent.mouseLocation
-            return
-        }
-        super.mouseDown(with: event)
-    }
-
-    override func mouseDragged(with event: NSEvent) {
-        guard pullStart != nil else {
-            super.mouseDragged(with: event)
-            return
-        }
-        NSCursor.resizeLeftRight.set()
-    }
-
-    override func mouseUp(with event: NSEvent) {
-        guard let pullStart else {
-            super.mouseUp(with: event)
-            return
-        }
-        let travel = NSEvent.mouseLocation.x - pullStart.x
-        self.pullStart = nil
-        if abs(travel) > 12 {
-            onEdgePull?(travel)
-        } else {
-            onEdgePull?(tuckedForPull ? -40 : 40)
-        }
     }
 
     override func updateTrackingAreas() {
@@ -360,9 +333,7 @@ private final class SiftNotchHostingView: NSHostingView<SiftIslandView> {
         let railStart = bounds.maxX - NotchRailMetrics.depth
         let gripHeight = NotchRailMetrics.bottomPadding + NotchRailMetrics.gripRowHeight
         let overGrip = point.x >= railStart && point.x < railStart + 32 && point.y <= gripHeight
-        if acceptsEdgePull, point.x >= bounds.maxX - 32 {
-            NSCursor.resizeLeftRight.set()
-        } else if overGrip {
+        if overGrip {
             NSCursor.openHand.set()
         } else if showsCard || point.x >= railStart {
             NSCursor.pointingHand.set()

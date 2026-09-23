@@ -125,6 +125,15 @@ import Testing
     #expect(!JevClient.disclosure.isEmpty)
 }
 
+@Test func jevDecodesNoulScores() throws {
+    let json = """
+    {"answers":{"l0":{"noul":0.82},"l1":{"noul":0.2}}}
+    """
+    let scores = try JevClient.decodeNouls(Data(json.utf8))
+    #expect(scores["l0"] == 0.82)
+    #expect(scores["l1"] == 0.2)
+}
+
 @Test func semanticBlendKeepsExactNamesFirst() {
     let ordered = SemanticRanker.blend(
         keywordIDs: ["exact"],

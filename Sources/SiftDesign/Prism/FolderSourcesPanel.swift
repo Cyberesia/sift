@@ -15,6 +15,7 @@ public struct FolderSourcesPanel: View {
     let style: FolderSourcesPanelStyle
     let onReplace: ((String) -> Void)?
     let onRemove: (String) -> Void
+    @State private var confirm: SiftConfirm?
 
     public init(
         folders: [FolderBookmark],
@@ -36,6 +37,7 @@ public struct FolderSourcesPanel: View {
             case .embedded: embeddedBody
             }
         }
+        .siftConfirming($confirm)
     }
 
     private var shellBody: some View {
@@ -111,7 +113,13 @@ public struct FolderSourcesPanel: View {
                 .prismClickable()
             }
             Button("Remove", role: .destructive) {
-                onRemove(folder.id)
+                confirm = SiftConfirm(
+                    title: "Remove \(folder.displayName)?",
+                    message: "This folder is forgotten as a source. Files already there stay on the Mac. They disappear from the catalog.",
+                    confirmTitle: "Remove from catalog"
+                ) {
+                    onRemove(folder.id)
+                }
             }
             .controlSize(.small)
             .prismClickable()

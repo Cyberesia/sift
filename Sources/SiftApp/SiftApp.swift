@@ -82,8 +82,8 @@ struct SettingsView: View {
                     refreshTransfers()
                 }
             },
-            onFactoryReset: {
-                session.performFactoryReset()
+            onFactoryReset: { library, settings in
+                session.performFactoryReset(library: library, settings: settings)
                 refreshTransfers()
             }
         )

@@ -106,7 +106,7 @@ The side rail tucks to the right when the Sift window covers it, including fulls
 
 ### Documents
 
-Office files, PDF, and text files are read locally. In the library they open in Quick Look. A document also becomes a small set of tags for its type — prose, spreadsheet, slides, meeting, budget, short deck — not a quotation of the file. Those tags are what search, and Jev, can use.
+Office files, PDF, and text files are read locally. In the library they open in Quick Look. Each file keeps labels taken from its content: the opening lines, the headings, the sheet names, and the column headers, plus a type such as spreadsheet or meeting. Search uses those labels. With a Jev key, indexing asks once which of them fit. The rest of the file stays on this Mac.
 
 [![][back-to-top]](#readme-top)
 
@@ -120,14 +120,14 @@ Office files, PDF, and text files are read locally. In the library they open in 
 
 ### `A` Download the latest release
 
-1. Open **[Releases][github-release-link]** and download the latest `Sift.app` zip.
-2. Move **Sift** to Applications.
+1. Open **[Releases][github-release-link]** and download the latest `Sift.dmg`.
+2. Open the disk image and drag **Sift** to Applications.
 3. Launch it. The first scan is something you start. Sift does not rearrange files on its own.
 
 | Step | Action |
 | :--: | :-- |
-| 1 | Download the latest release |
-| 2 | Move Sift to Applications |
+| 1 | Download `Sift.dmg` from Releases |
+| 2 | Drag Sift to Applications |
 | 3 | Open Discover and choose what to scan |
 
 > [!NOTE]
@@ -152,7 +152,7 @@ A bundled app is more reliable for window focus and folder permissions:
 
 ```bash
 ./Scripts/package-direct.sh
-open .build/distribution/Sift.app
+open .build/distribution/Sift.dmg
 ```
 
 #### Requirements
@@ -172,7 +172,8 @@ Indexing, Vision, CLIP, and document reading run on this Mac.
 | Data | Leaves the Mac? |
 | :-- | :-- |
 | Photos, video, audio | No |
-| Document files and excerpts | No |
+| Document files | No |
+| Opening lines, headings, sheet names, and column headers | Only while indexing, if a Jev key is saved |
 | Document tags, filenames, and a search query | Only if you saved a Jev key and press Return |
 | CLIP / Vision labels | Used locally. A short label list may be included in that same Return question |
 

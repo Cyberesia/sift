@@ -6,6 +6,7 @@ public struct DestinationsPanel: View {
     let activeDestinationID: String?
     let onSelect: (String) -> Void
     let onRemove: (String) -> Void
+    @State private var confirm: SiftConfirm?
     let onAdd: () -> Void
 
     public init(
@@ -51,6 +52,7 @@ public struct DestinationsPanel: View {
         }
         .padding(16)
         .prismGlass(cornerRadius: 16, padding: 0)
+        .siftConfirming($confirm)
     }
 
     private func destinationRow(_ dest: DestinationBookmark) -> some View {
@@ -74,7 +76,13 @@ public struct DestinationsPanel: View {
             .prismClickable()
 
             Button("Remove", role: .destructive) {
-                onRemove(dest.id)
+                confirm = SiftConfirm(
+                    title: "Forget \(dest.displayName)?",
+                    message: "Sift will no longer organize into this folder. Files already there stay on disk.",
+                    confirmTitle: "Forget destination"
+                ) {
+                    onRemove(dest.id)
+                }
             }
             .buttonStyle(.borderless)
             .font(.caption)

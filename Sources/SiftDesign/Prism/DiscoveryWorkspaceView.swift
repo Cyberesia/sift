@@ -16,6 +16,7 @@ public struct DiscoveryWorkspaceView: View {
     let documentExtensions: Set<String>
     let onToggleDocumentExtension: (String, Bool) -> Void
     let filingNote: String
+    @State private var confirm: SiftConfirm?
 
     public init(
         folders: [FolderBookmark],
@@ -103,7 +104,18 @@ public struct DiscoveryWorkspaceView: View {
                             .buttonStyle(.borderedProminent)
                             .help("Pick where organized files should go. Nothing moves yet.")
                             .prismClickable()
-                            Button(action: onRescan) {
+                            Button {
+                                let names = folders.map(\.displayName).joined(separator: ", ")
+                                confirm = SiftConfirm(
+                                    title: "Look again?",
+                                    message: names.isEmpty
+                                        ? "Sift walks the saved folders and updates the catalog. Files stay where they are."
+                                        : "Sift walks \(names) and updates the catalog. Files stay where they are.",
+                                    confirmTitle: "Look again",
+                                    destructive: false,
+                                    run: onRescan
+                                )
+                            } label: {
                                 Label("Look again", systemImage: "arrow.clockwise")
                             }
                             .buttonStyle(.bordered)
@@ -153,6 +165,7 @@ public struct DiscoveryWorkspaceView: View {
             }
             .padding(24)
         }
+        .siftConfirming($confirm)
     }
 
     private var lookAgainHelp: String {

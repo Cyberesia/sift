@@ -34,4 +34,25 @@ if [[ -n "${SIGN_IDENTITY:-}" ]]; then
   echo "Signed with $SIGN_IDENTITY"
 fi
 
+VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$CONTENTS/Info.plist")"
+STAGE="$ROOT/.build/distribution/dmg-stage"
+DMG="$ROOT/.build/distribution/Sift.dmg"
+
+rm -rf "$STAGE"
+mkdir -p "$STAGE"
+cp -R "$APP_DIR" "$STAGE/"
+ln -s /Applications "$STAGE/Applications"
+rm -f "$DMG"
+hdiutil create \
+  -volname "Sift ${VERSION}" \
+  -srcfolder "$STAGE" \
+  -ov \
+  -format UDZO \
+  "$DMG"
+
+if [[ -n "${SIGN_IDENTITY:-}" ]]; then
+  codesign --force --timestamp --sign "$SIGN_IDENTITY" "$DMG"
+fi
+
 echo "Built: $APP_DIR"
+echo "DMG:   $DMG"

@@ -102,7 +102,7 @@ Le rail se range à droite quand la fenêtre de Sift le recouvre, y compris en p
 
 ### Documents
 
-Les fichiers bureautique, PDF et texte sont lus localement. Dans la bibliothèque ils s’ouvrent dans Quick Look. Un document devient aussi un petit jeu de tags pour son type — prose, tableur, diaporama, meeting, budget, court deck — pas une citation du fichier. Ce sont ces tags que la recherche, et Jev, peuvent utiliser.
+Les fichiers bureautique, PDF et texte sont lus localement. Dans la bibliothèque ils s’ouvrent dans Quick Look. Chaque fichier garde des labels tirés de son contenu : les premières lignes, les titres, les noms de feuilles et les en-têtes de colonnes, plus un type comme tableur ou meeting. La recherche utilise ces labels. Avec une clé Jev, l’indexation demande une fois lesquels conviennent. Le reste du fichier reste sur ce Mac.
 
 [![][back-to-top]](#readme-top)
 
@@ -112,18 +112,18 @@ Les fichiers bureautique, PDF et texte sont lus localement. Dans la bibliothèqu
 
 > [!TIP]
 >
-> Signature et notarisation : [RELEASE.md][release-link].
+> Signature et notarisation : [RELEASE.fr.md](./RELEASE.fr.md).
 
 ### `A` Télécharger la dernière version
 
-1. Ouvrez **[Releases][github-release-link]** et téléchargez le zip `Sift.app`.
-2. Placez **Sift** dans Applications.
+1. Ouvrez **[Releases][github-release-link]** et téléchargez le dernier `Sift.dmg`.
+2. Ouvrez l’image disque et glissez **Sift** dans Applications.
 3. Lancez-le. Le premier scan est une action à vous. Sift ne réorganise pas les fichiers tout seul.
 
 | Étape | Action |
 | :--: | :-- |
-| 1 | Télécharger la dernière release |
-| 2 | Placer Sift dans Applications |
+| 1 | Télécharger `Sift.dmg` depuis Releases |
+| 2 | Glisser Sift dans Applications |
 | 3 | Ouvrir Découvrir et choisir quoi scanner |
 
 > [!NOTE]
@@ -148,7 +148,7 @@ Une app empaquetée est plus fiable pour le focus de la fenêtre et les permissi
 
 ```bash
 ./Scripts/package-direct.sh
-open .build/distribution/Sift.app
+open .build/distribution/Sift.dmg
 ```
 
 #### Prérequis
@@ -168,7 +168,8 @@ L’indexation, Vision, CLIP et la lecture des documents tournent sur ce Mac.
 | Donnée | Quitte le Mac ? |
 | :-- | :-- |
 | Photos, vidéo, audio | Non |
-| Fichiers documents et extraits | Non |
+| Fichiers documents | Non |
+| Premières lignes, titres, noms de feuilles et en-têtes de colonnes | Seulement pendant l’indexation, si une clé Jev est enregistrée |
 | Tags de documents, noms de fichiers, et une requête | Seulement si une clé Jev est enregistrée et que vous appuyez sur Entrée |
 | Labels CLIP / Vision | Utilisés localement. Une courte liste peut accompagner cette même question Entrée |
 
@@ -293,7 +294,7 @@ Notices et crédits : [NOTICES.md](./NOTICES.md) · [ATTRIBUTIONS.md](./ATTRIBUT
 [platform-shield]: https://img.shields.io/badge/platform-macOS%20arm64-007ACC?labelColor=151515&style=flat-square
 [pr-welcome-link]: https://github.com/cyberesia/sift/pulls
 [pr-welcome-shield]: https://img.shields.io/badge/PR_welcome-→-ffcb47?labelColor=151515&style=for-the-badge
-[release-link]: ./RELEASE.md
+[release-link]: ./RELEASE.fr.md
 [share-linkedin-link]: https://www.linkedin.com/sharing/share-offsite/?url=https%3A%2F%2Fgithub.com%2Fcyberesia%2Fsift
 [share-linkedin-shield]: https://img.shields.io/badge/-share%20on%20linkedin-151515?labelColor=151515&logo=linkedin&logoColor=white&style=flat-square
 [share-mastodon-link]: https://mastodon.social/share?text=Sift%20%E2%80%94%20catalogue%20photos%2C%20vid%C3%A9o%2C%20musique%20et%20documents%20l%C3%A0%20o%C3%B9%20ils%20sont.%20https%3A%2F%2Fgithub.com%2Fcyberesia%2Fsift

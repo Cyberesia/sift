@@ -96,6 +96,7 @@ public struct OrganizePlanSheet: View {
     let canConfirm: Bool
     let onApproveSafe: () -> Void
     let onClose: () -> Void
+    @State private var confirm: SiftConfirm?
 
     public init(
         items: [OrganizePlanItem],
@@ -135,7 +136,16 @@ public struct OrganizePlanSheet: View {
                 Button("Close", action: onClose)
                     .prismClickable()
                 Spacer()
-                Button(confirmLabel, action: onApproveSafe)
+                Button(confirmLabel) {
+                    confirm = SiftConfirm(
+                        title: "Change these files?",
+                        message: "\(confirmLabel). Files marked as left as they are are not touched.",
+                        confirmTitle: confirmLabel,
+                        destructive: confirmLabel.hasPrefix("Move")
+                    ) {
+                        onApproveSafe()
+                    }
+                }
                     .buttonStyle(.borderedProminent)
                     .disabled(safe.isEmpty || !canConfirm)
                     .prismClickable()
@@ -143,5 +153,6 @@ public struct OrganizePlanSheet: View {
         }
         .padding(20)
         .frame(width: 520, height: 460)
+        .siftConfirming($confirm)
     }
 }

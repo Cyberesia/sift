@@ -456,7 +456,7 @@ public final class IndexingCoordinator: ObservableObject {
                     do {
                         if job.kind == .document {
                             try await Task.detached(priority: .utility) {
-                                try DocumentAnalysisWriter.readAndSave(id: job.id, url: job.fileURL)
+                                try await DocumentAnalysisWriter.readAndSave(id: job.id, url: job.fileURL)
                             }.value
                         } else if let record = try store.fetchAsset(id: job.id) {
                             try await analyze(record: record)
@@ -566,7 +566,7 @@ public final class IndexingCoordinator: ObservableObject {
             let fileURL = record.fileURL
             let assetID = record.id
             try await Task.detached(priority: .utility) {
-                try DocumentAnalysisWriter.readAndSave(id: assetID, url: fileURL)
+                try await DocumentAnalysisWriter.readAndSave(id: assetID, url: fileURL)
             }.value
             return
         }

@@ -17,6 +17,7 @@ public struct PrismShellView: View {
     @Environment(\.openSettings) private var openSettings
     #endif
     @State private var hoveredLibraryAsset: MediaAssetSummary?
+    @State private var showHelp = false
     @State private var clearLibraryHover: Task<Void, Never>?
 
     public init(session: SiftRootSession) {
@@ -162,6 +163,9 @@ public struct PrismShellView: View {
                   let asset = session.displayedAssets.first(where: { $0.id == id }) else { return }
             session.openPreview(asset)
         }
+        .sheet(isPresented: $showHelp) {
+            SiftHelpView(mode: session.appMode.rawValue, onClose: { showHelp = false })
+        }
         .sheet(isPresented: $session.showMacScanWizard) {
             MacScanWizard(
                 fullDiskAccess: FullDiskAccessProbe.isGranted(),
@@ -305,6 +309,15 @@ public struct PrismShellView: View {
     private var modePicker: some View {
         HStack(spacing: 10) {
             PrismModePicker(selection: $session.appMode)
+            Button {
+                showHelp = true
+            } label: {
+                Image(systemName: "questionmark.circle")
+                    .frame(width: 32, height: 32)
+            }
+            .buttonStyle(.bordered)
+            .help("Help for this page")
+            .prismClickable()
             #if os(macOS)
             Button {
                 openSettings()

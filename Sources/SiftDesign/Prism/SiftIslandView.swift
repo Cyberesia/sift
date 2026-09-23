@@ -30,7 +30,6 @@ public struct SiftIslandView: View {
     let onResize: (Bool) -> Void
     let alongOffset: () -> CGFloat
     let onSetAlongOffset: (CGFloat) -> Void
-    let onPullEnded: (CGFloat) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var hovered: NotchRailItem?
@@ -60,8 +59,7 @@ public struct SiftIslandView: View {
         onQuit: @escaping () -> Void,
         onResize: @escaping (Bool) -> Void,
         alongOffset: @escaping () -> CGFloat,
-        onSetAlongOffset: @escaping (CGFloat) -> Void,
-        onPullEnded: @escaping (CGFloat) -> Void
+        onSetAlongOffset: @escaping (CGFloat) -> Void
     ) {
         self.jobs = jobs
         self.chrome = chrome
@@ -85,7 +83,6 @@ public struct SiftIslandView: View {
         self.onResize = onResize
         self.alongOffset = alongOffset
         self.onSetAlongOffset = onSetAlongOffset
-        self.onPullEnded = onPullEnded
     }
 
     public var body: some View {
@@ -146,11 +143,6 @@ public struct SiftIslandView: View {
         .padding(.top, NotchRailMetrics.topPadding)
         .padding(.bottom, NotchRailMetrics.bottomPadding)
         .frame(width: NotchRailMetrics.depth, height: NotchRailMetrics.length)
-        .overlay(alignment: .trailing) {
-            if chrome.isTucked || chrome.windowCoversNotch {
-                edgePull
-            }
-        }
         .background {
             SideNotchShape()
                 .fill(.ultraThinMaterial)
@@ -235,46 +227,6 @@ public struct SiftIslandView: View {
                     .onEnded { _ in moveOrigin = nil }
             )
             .help("Drag along the screen edge")
-    }
-
-    private var edgePull: some View {
-        VStack {
-            Spacer(minLength: 0)
-            Image(systemName: chrome.isTucked ? "chevron.left" : "chevron.right")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(width: 26, height: 72)
-                .background {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(.ultraThinMaterial)
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(PrismTheme.accent.opacity(0.88))
-                        }
-                }
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.55), lineWidth: 1)
-                }
-                .shadow(color: .black.opacity(0.35), radius: 8, x: -2, y: 2)
-                .help(chrome.isTucked ? "Drag left to open the notch" : "Drag right to tuck the notch away")
-            Spacer(minLength: 0)
-        }
-        .frame(width: 28)
-        .contentShape(Rectangle())
-        .gesture(
-            DragGesture(minimumDistance: 4)
-                .onEnded { value in
-                    let travel = value.translation.width
-                    guard abs(travel) > abs(value.translation.height) else { return }
-                    onPullEnded(travel)
-                }
-        )
-        .onHover { inside in
-            #if os(macOS)
-            if inside { NSCursor.resizeLeftRight.set() }
-            #endif
-        }
     }
 
     private func hoverCard(_ item: NotchRailItem, tailBias: CGFloat) -> some View {

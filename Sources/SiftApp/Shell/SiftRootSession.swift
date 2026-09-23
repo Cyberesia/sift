@@ -1583,17 +1583,26 @@ public final class SiftRootSession: ObservableObject {
         clearAssetSelection()
     }
 
-    public func performFactoryReset() {
+    public func performFactoryReset(library: Bool, settings: Bool) {
+        guard library || settings else { return }
         #if os(macOS)
-        stopSourceFolderWatcher()
+        if settings { stopSourceFolderWatcher() }
         #endif
-        try? LibraryResetCoordinator.resetAll(
+        try? LibraryResetCoordinator.reset(
+            library: library,
+            settings: settings,
             indexStore: indexStore,
             bookmarkStore: bookmarkStore,
             destinationStore: destinationStore
         )
-        duplicateGroups = []
-        clearAssetSelection()
+        if settings {
+            scanKinds = ScanKindStore.load()
+            scanDocumentExtensions = ScanKindStore.loadExtensions()
+        }
+        if library {
+            duplicateGroups = []
+            clearAssetSelection()
+        }
         reloadLibrary()
     }
 

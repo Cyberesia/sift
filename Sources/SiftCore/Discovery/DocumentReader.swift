@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(PDFKit)
+import PDFKit
+#endif
 
 /// Text documents added beside photos, video, and audio. Code files are not included.
 public enum DocumentFormats {
@@ -25,38 +28,79 @@ public struct DocumentReading: Sendable, Equatable {
     public let category: String
     public let units: [DocumentUnit]
     public let excerpt: String
+    /// Sheet column names, separate from the cell values.
+    public let columns: [String]
 
-    public init(category: String, units: [DocumentUnit], excerpt: String) {
+    public init(category: String, units: [DocumentUnit], excerpt: String, columns: [String] = []) {
         self.category = category
         self.units = units
         self.excerpt = excerpt
+        self.columns = columns
     }
 }
 
-/// Closed labels for a document. The words of the file stay on this Mac; only these tags can leave.
+/// Kind tags plus labels taken from the file: headings, the opening line, sheet names, and column headers.
 public enum DocumentTags {
     public static func isTag(_ value: String) -> Bool {
         allowed.contains(value)
     }
 
-    public static func make(category: String, fileName: String, units: [DocumentUnit]) -> [String] {
+    public static func make(
+        category: String,
+        fileName: String,
+        units: [DocumentUnit],
+        columns: [String] = []
+    ) -> [String] {
         let sample = units.prefix(12).map { "\($0.title) \($0.text)" }.joined(separator: " ")
-        return assemble(
+        let kinds = assemble(
             category: category,
             fileName: fileName,
             unitCount: units.count,
             sample: String(sample.prefix(6_000))
         )
+        return unique(subjectLabels(category: category, units: units, columns: columns) + kinds)
     }
 
-    /// Drops stored heading text. Tags already saved are kept. Anything else is matched locally and reduced to a tag.
+    /// Keeps kind tags and short subject labels. A stored excerpt longer than a label is dropped.
     public static func sanitized(fileName: String, stored: [String]) -> [String] {
-        let headings = stored.filter { !isTag($0) }
-        if headings.isEmpty {
-            return stored.filter(isTag)
+        _ = fileName
+        let subjects = stored.filter { !isTag($0) && isUsefulLabel($0) }
+        let kinds = stored.filter(isTag)
+        return unique(subjects + kinds)
+    }
+
+    /// Headings, the first sentence, sheet names, and column headers. Generic placeholders are left out.
+    public static func subjectLabels(category: String, units: [DocumentUnit], columns: [String]) -> [String] {
+        var labels: [String] = []
+        for unit in units.prefix(12) {
+            let title = cleaned(unit.title)
+            if category == "spreadsheet" {
+                if isUsefulLabel(title) { labels.append(title) }
+            } else if title.lowercased().hasPrefix("slide ") {
+                if let line = firstLine(unit.text), isUsefulLabel(line) { labels.append(line) }
+            } else if isUsefulLabel(title) {
+                labels.append(title)
+            }
         }
-        let category = ["spreadsheet", "slides", "notes", "prose"].first { stored.contains($0) } ?? kind(forFileName: fileName)
-        return make(category: category, fileName: fileName, units: headings.map { DocumentUnit(title: $0, text: "") })
+        if category != "spreadsheet", let opening = units.first.flatMap({ openingSentence($0.text) }) {
+            labels.append(opening)
+        }
+        for column in columns {
+            let name = cleaned(column)
+            if isUsefulLabel(name) { labels.append(name) }
+        }
+        return unique(labels).prefix(16).map { $0 }
+    }
+
+    public static func isUsefulLabel(_ value: String) -> Bool {
+        let label = cleaned(value)
+        guard label.count >= 2, label.count <= 80, label.contains(where: \.isLetter) else { return false }
+        let folded = fold(label)
+        if genericTitles.contains(folded) { return false }
+        if folded.range(of: #"^(slide|sheet|feuil|column|col)\s*\d+$"#, options: .regularExpression) != nil {
+            return false
+        }
+        return true
     }
 
     private static func assemble(category: String, fileName: String, unitCount: Int, sample: String) -> [String] {
@@ -93,6 +137,42 @@ public enum DocumentTags {
     private static func tokens(in text: String) -> [String] {
         let folded = text.folding(options: .diacriticInsensitive, locale: Locale(identifier: "en_US_POSIX")).lowercased()
         return folded.split { !$0.isLetter && !$0.isNumber }.map(String.init)
+    }
+
+    private static let genericTitles: Set<String> = [
+        "document", "notes", "note", "section", "slide", "sheet", "sheets",
+        "untitled", "sans titre", "worksheet", "introduction", "overview",
+    ]
+
+    private static func unique(_ labels: [String]) -> [String] {
+        var seen = Set<String>()
+        return labels.filter { seen.insert(fold($0)).inserted }
+    }
+
+    private static func cleaned(_ value: String) -> String {
+        value.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func fold(_ value: String) -> String {
+        cleaned(value).folding(options: .diacriticInsensitive, locale: Locale(identifier: "en_US_POSIX")).lowercased()
+    }
+
+    private static func firstLine(_ text: String) -> String? {
+        text.split(whereSeparator: \.isNewline)
+            .map { cleaned(String($0)) }
+            .first { !$0.isEmpty }
+    }
+
+    private static func openingSentence(_ text: String) -> String? {
+        guard let line = firstLine(text), line.count >= 12 else { return nil }
+        let end = line.firstIndex { ".!?".contains($0) }
+        var sentence = end.map { String(line[...$0]) } ?? line
+        sentence = cleaned(sentence)
+        if sentence.count > 80, let space = sentence.prefix(80).lastIndex(of: " ") {
+            sentence = cleaned(String(sentence[..<space]))
+        }
+        return isUsefulLabel(sentence) ? sentence : nil
     }
 
     private static func phrase(_ phrase: String, isIn words: [String]) -> Bool {
@@ -161,7 +241,9 @@ public enum DocumentReader {
         case "md", "mdx":
             return markdown(readPlain(url))
         case "csv":
-            return single("spreadsheet", title: url.deletingPathExtension().lastPathComponent, text: readPlain(url, maxBytes: 80_000))
+            return csv(url)
+        case "pdf":
+            return pdf(url)
         case "txt":
             return single("prose", title: url.deletingPathExtension().lastPathComponent, text: readPlain(url))
         case "rtf":
@@ -266,24 +348,122 @@ public enum DocumentReader {
         return finish("slides", units: units)
     }
 
+    private static func csv(_ url: URL) -> DocumentReading {
+        let raw = readPlain(url, maxBytes: 80_000)
+        let header = raw.split(whereSeparator: \.isNewline).first.map(String.init) ?? ""
+        let columns = csvFields(header)
+        let stem = url.deletingPathExtension().lastPathComponent
+        return finish(
+            "spreadsheet",
+            units: [DocumentUnit(title: stem, text: columns.joined(separator: ", "))],
+            columns: columns
+        )
+    }
+
+    private static func pdf(_ url: URL) -> DocumentReading {
+        let stem = url.deletingPathExtension().lastPathComponent
+        #if canImport(PDFKit)
+        guard let document = PDFDocument(url: url), document.pageCount > 0 else {
+            return single("prose", title: stem, text: "")
+        }
+        var text = ""
+        for index in 0..<min(document.pageCount, 2) {
+            guard let page = document.page(at: index)?.string else { continue }
+            text += page
+            text += "\n"
+            if text.count > 4_000 { break }
+        }
+        let lines = text.split(whereSeparator: \.isNewline).map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        let title = lines.first.flatMap { $0.count <= 80 ? $0 : nil } ?? stem
+        let body = lines.dropFirst().joined(separator: " ")
+        let opening = body.isEmpty ? (lines.first ?? "") : body
+        return single("prose", title: title, text: String(opening.prefix(1_500)))
+        #else
+        return single("prose", title: stem, text: "")
+        #endif
+    }
+
     private static func sheets(_ url: URL) -> DocumentReading {
         let workbook = ZipText.extract("xl/workbook.xml", from: url) ?? ""
         var titles = matches(in: workbook, pattern: "name=\"([^\"]+)\"")
         if titles.isEmpty { titles = [url.deletingPathExtension().lastPathComponent] }
-        let shared = ZipText.extract("xl/sharedStrings.xml", from: url).map(plainXML) ?? ""
-        let sample = String(shared.prefix(1_500))
-        let units = titles.prefix(unitLimit).map { DocumentUnit(title: $0, text: sample) }
-        return finish("spreadsheet", units: Array(units))
+        let shared = sharedStringList(ZipText.extract("xl/sharedStrings.xml", from: url) ?? "")
+        var units: [DocumentUnit] = []
+        var columns: [String] = []
+        for (index, title) in titles.prefix(unitLimit).enumerated() {
+            let sheet = ZipText.extract("xl/worksheets/sheet\(index + 1).xml", from: url) ?? ""
+            let headers = firstRowValues(sheet, shared: shared)
+            columns.append(contentsOf: headers)
+            units.append(DocumentUnit(title: title, text: headers.joined(separator: ", ")))
+        }
+        if units.isEmpty {
+            units = [DocumentUnit(title: url.deletingPathExtension().lastPathComponent, text: "")]
+        }
+        return finish("spreadsheet", units: units, columns: columns)
+    }
+
+    private static func csvFields(_ line: String) -> [String] {
+        var fields: [String] = []
+        var current = ""
+        var inQuotes = false
+        for character in line {
+            if character == "\"" {
+                inQuotes.toggle()
+                continue
+            }
+            if character == "," && !inQuotes {
+                let field = current.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !field.isEmpty { fields.append(field) }
+                current = ""
+                continue
+            }
+            current.append(character)
+        }
+        let field = current.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !field.isEmpty { fields.append(field) }
+        return fields
+    }
+
+    private static func sharedStringList(_ xml: String) -> [String] {
+        xml.components(separatedBy: "<si").dropFirst().map {
+            plainXML(String($0.prefix(500))).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+    }
+
+    private static func firstRowValues(_ sheet: String, shared: [String]) -> [String] {
+        guard let start = sheet.range(of: "<row") else { return [] }
+        let tail = sheet[start.lowerBound...]
+        let row: String
+        if let end = tail.range(of: "</row>") {
+            row = String(tail[..<end.upperBound])
+        } else {
+            row = String(tail.prefix(4_000))
+        }
+        var values: [String] = []
+        for piece in row.components(separatedBy: "<c ").dropFirst() {
+            let cell = String(piece.prefix(800))
+            if cell.contains("t=\"s\"") || cell.contains("t='s'") {
+                guard let raw = matches(in: cell, pattern: "<v>([^<]*)</v>").first,
+                      let index = Int(raw),
+                      shared.indices.contains(index) else { continue }
+                values.append(shared[index])
+            } else if cell.contains("inlineStr") {
+                let text = plainXML(cell).trimmingCharacters(in: .whitespacesAndNewlines)
+                if !text.isEmpty { values.append(text) }
+            }
+        }
+        return values
     }
 
     private static func single(_ category: String, title: String, text: String) -> DocumentReading {
         finish(category, units: [DocumentUnit(title: title, text: String(text.prefix(1_500)))])
     }
 
-    private static func finish(_ category: String, units: [DocumentUnit]) -> DocumentReading {
+    private static func finish(_ category: String, units: [DocumentUnit], columns: [String] = []) -> DocumentReading {
         let kept = Array(units.prefix(unitLimit))
-        let excerpt = String(kept.map { "\($0.title)\n\($0.text)" }.joined(separator: "\n\n").prefix(excerptLimit))
-        return DocumentReading(category: category, units: kept, excerpt: excerpt)
+        let header = columns.isEmpty ? "" : "Columns: \(columns.joined(separator: ", "))\n\n"
+        let excerpt = String((header + kept.map { "\($0.title)\n\($0.text)" }.joined(separator: "\n\n")).prefix(excerptLimit))
+        return DocumentReading(category: category, units: kept, excerpt: excerpt, columns: columns)
     }
 
     private static func readPlain(_ url: URL, maxBytes: Int = 200_000) -> String {

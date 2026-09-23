@@ -20,6 +20,7 @@ public struct ReorganizeWorkspaceView: View {
     let planItems: [OrganizePlanItem]
     let onPreviewPlan: () -> Void
     let onApproveSafe: () -> Void
+    @State private var confirm: SiftConfirm?
     let destinationPath: String
     let filingNote: String
     let transferChoiceConfirmed: Bool
@@ -170,7 +171,16 @@ public struct ReorganizeWorkspaceView: View {
                 HStack(spacing: 10) {
                     Button("Review the list", action: onPreviewPlan)
                         .prismClickable()
-                    Button(approveTitle, action: onApproveSafe)
+                    Button(approveTitle) {
+                        confirm = SiftConfirm(
+                            title: "Change these files?",
+                            message: "\(approveTitle). Nothing else is touched. A recent transfer can be undone from Settings while the file is still at the destination.",
+                            confirmTitle: approveTitle,
+                            destructive: transferMode == .move
+                        ) {
+                            onApproveSafe()
+                        }
+                    }
                         .buttonStyle(.borderedProminent)
                         .disabled(!transferChoiceConfirmed || readyCount == 0 || activeDestinationName.isEmpty)
                         .prismClickable()
@@ -203,6 +213,7 @@ public struct ReorganizeWorkspaceView: View {
             .padding(24)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .siftConfirming($confirm)
     }
 
     private var selectionCaption: String {
@@ -267,7 +278,15 @@ public struct ReorganizeWorkspaceView: View {
     ) -> some View {
         let enabled = canTransfer && transferChoiceConfirmed
         let verb = transferMode == .move ? "Move" : "Copy"
-        return Button(action: action) {
+        return Button {
+            confirm = SiftConfirm(
+                title: "\(verb) the selected files?",
+                message: "\(verb) the selection into \(bucket), inside \(activeDestinationName). Other files stay where they are.",
+                confirmTitle: "\(verb) into \(bucket)",
+                destructive: transferMode == .move,
+                run: action
+            )
+        } label: {
             VStack(spacing: 10) {
                 Image(systemName: icon)
                     .font(.title)

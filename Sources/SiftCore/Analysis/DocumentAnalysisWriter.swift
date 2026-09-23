@@ -30,17 +30,29 @@ enum AnalysisJobQueue {
 
 /// Saves a document's tags off the interface thread. The file text never waits on a click.
 enum DocumentAnalysisWriter {
-    static func readAndSave(id: String, url: URL) throws {
+    static func readAndSave(id: String, url: URL) async throws {
         let reading = DocumentReader.read(url: url)
         let lines = reading.excerpt.split(separator: "\n").map(String.init)
+        let fileName = url.lastPathComponent
+        let drafted = DocumentTags.make(
+            category: reading.category,
+            fileName: fileName,
+            units: reading.units,
+            columns: reading.columns
+        )
+        let kinds = drafted.filter(DocumentTags.isTag)
+        let subjects = drafted.filter { !DocumentTags.isTag($0) }
+        let judged = await JevAdvisor.keepDocumentLabels(
+            fileName: fileName,
+            kind: reading.category,
+            opening: reading.excerpt,
+            labels: subjects
+        )
+        let tags = DocumentTags.sanitized(fileName: fileName, stored: (judged ?? subjects) + kinds)
         let result = PhotoAnalysisResult(
             isScreenshotOrDocument: false,
             textLineCount: lines.count,
-            topCategories: DocumentTags.make(
-                category: reading.category,
-                fileName: url.lastPathComponent,
-                units: reading.units
-            ),
+            topCategories: tags,
             recognizedText: Array(lines.prefix(40))
         )
         let context = ModelContext(StratumSchema.modelContainer)

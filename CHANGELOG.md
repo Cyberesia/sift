@@ -6,9 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-23
+
+First downloadable release. Version 0.1.0 was the source snapshot on `main`. It was never published as a GitHub Release, and it had no DMG.
+
+### Added
+
+- **Updates** — on launch, and in Settings, Sift asks GitHub once a day if [Cyberesia/sift](https://github.com/Cyberesia/sift) has a newer release. An available update offers the latest DMG. Later remembers that version.
+- **Help** — the ? opens on the page you are looking at and explains each control and each dialog, in English and French.
+
+### Changed
+
+- Document labels now come from the file: the opening, the headings, sheet names, and column headers. PDF text is read. With a Jev key, that short outline is judged once while the file is indexed.
+- Reset asks you to choose Library, Settings, or both, and explains each one before anything is cleared. Other buttons that change the catalog, the files, or saved choices ask first.
+
 ## [0.1.0] - 2026-09-23
 
-First public release. Sift catalogs photos, video, audio, and documents where they already are. Nothing is copied or moved until you choose that, in words, on the Organize screen.
+Source snapshot. Not a GitHub Release.
+
+Sift catalogs photos, video, audio, and documents where they already are. Nothing is copied or moved until you choose that, in words, on the Organize screen.
 
 ### Added
 
@@ -21,5 +37,6 @@ First public release. Sift catalogs photos, video, audio, and documents where th
 - **Quiet updates** — a change inside a saved folder checks those files. A full walk of a folder such as Downloads happens when you choose Look again.
 - **Jev (optional)** — with a key saved, Return can route a command or pick among a short list. No key, or a low-confidence answer, keeps the local result. Pixels and document text stay on this Mac.
 
-[Unreleased]: https://github.com/Cyberesia/sift/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Cyberesia/sift/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/Cyberesia/sift/releases/tag/v0.1.1
 [0.1.0]: https://github.com/Cyberesia/sift/releases/tag/v0.1.0

@@ -36,10 +36,6 @@ public final class NotchChrome: ObservableObject {
     @Published public var fullDiskAccess = false
     @Published public var clipReady = false
     @Published public var clipEmbeddedCount = 0
-    /// The rail is slid off the screen edge, leaving the pull tab.
-    @Published public var isTucked = false
-    /// The app window covers the rail, including fullscreen.
-    @Published public var windowCoversNotch = false
 
     public init() {}
 

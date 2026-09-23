@@ -6,6 +6,7 @@ public struct IndexingRecoveryBar: View {
     let onContinue: () -> Void
     let onResetAI: () -> Void
     let onDismiss: () -> Void
+    @State private var confirm: SiftConfirm?
 
     public init(
         phaseLabel: String,
@@ -29,9 +30,25 @@ public struct IndexingRecoveryBar: View {
                 prominent: true,
                 action: onContinue
             )
-            recoveryButton("Reset AI tags", icon: "arrow.counterclockwise", prominent: false, action: onResetAI)
-            recoveryButton("Clear", icon: "xmark", prominent: false, action: onDismiss)
+            recoveryButton("Reset AI tags", icon: "arrow.counterclockwise", prominent: false) {
+                confirm = SiftConfirm(
+                    title: "Clear the tags?",
+                    message: "Saved tags and suggested groups are cleared. The files stay in the catalog, and tagging can run again.",
+                    confirmTitle: "Clear tags",
+                    run: onResetAI
+                )
+            }
+            recoveryButton("Clear", icon: "xmark", prominent: false) {
+                confirm = SiftConfirm(
+                    title: "Dismiss this status?",
+                    message: "The status bar goes away. The catalog is not changed.",
+                    confirmTitle: "Dismiss",
+                    destructive: false,
+                    run: onDismiss
+                )
+            }
         }
+        .siftConfirming($confirm)
     }
 
     private var continueTitle: String {

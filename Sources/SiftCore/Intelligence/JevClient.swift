@@ -95,7 +95,7 @@ public enum JevDecodeError: Error {
 
 /// Decodes a System One reply. Pixels stay on device; only the typed question result comes back.
 public enum JevClient {
-    public static let disclosure = "Jev receives the text question, the allowed answers, filenames, and document tags such as spreadsheet or meeting. Photos, video, audio, document text, and the files themselves stay on this Mac."
+    public static let disclosure = "Jev receives the text question and the allowed answers. While a document is indexed, a short outline can go with that question: the opening lines, headings, sheet names, and column headers. The file itself, photos, video, and audio stay on this Mac."
 
     public static func decode(_ data: Data) throws -> JevChoice {
         let object = try JSONSerialization.jsonObject(with: data)
@@ -127,6 +127,49 @@ public enum JevClient {
         request.httpBody = try JSONSerialization.data(withJSONObject: payload)
         let (data, _) = try await URLSession.shared.data(for: request)
         return try decode(data)
+    }
+
+    /// One yes/no score per key. Returns nil when no key is stored. Used once per document, at indexing.
+    public static func askNouls(state: String, questions: [String: String]) async throws -> [String: Double]? {
+        guard !questions.isEmpty, let token = JevCredential.load(prompt: false) else { return nil }
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 4
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let encodedQuestions = questions.mapValues { instruction in
+            ["type": "noul", "instructions": instruction]
+        }
+        let payload: [String: Any] = [
+            "model": "jev-latest",
+            "state": state,
+            "questions": encodedQuestions,
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await URLSession.shared.data(for: request)
+        return try decodeNouls(data)
+    }
+
+    public static func decodeNouls(_ data: Data) throws -> [String: Double] {
+        let object = try JSONSerialization.jsonObject(with: data)
+        guard let dict = object as? [String: Any] else { throw JevDecodeError.malformed }
+        let answers = (dict["answers"] as? [String: Any]) ?? [:]
+        var scores: [String: Double] = [:]
+        for (key, value) in answers {
+            if let score = jsonNumber(value) {
+                scores[key] = score
+            } else if let nested = value as? [String: Any], let score = jsonNumber(nested["noul"]) {
+                scores[key] = score
+            }
+        }
+        return scores
+    }
+
+    private static func jsonNumber(_ value: Any?) -> Double? {
+        if let number = value as? Double { return number }
+        if let number = value as? Int { return Double(number) }
+        if let number = value as? NSNumber { return number.doubleValue }
+        return nil
     }
 
     private static func choice(from object: Any) -> JevChoice? {

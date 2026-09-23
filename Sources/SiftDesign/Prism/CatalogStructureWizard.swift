@@ -8,6 +8,7 @@ public struct CatalogStructureWizard: View {
     let onChooseDestination: () -> Void
     let onCreateStructure: () -> Void
     let onClose: () -> Void
+    @State private var confirm: SiftConfirm?
 
     public init(
         activeDestinationName: String,
@@ -85,7 +86,18 @@ public struct CatalogStructureWizard: View {
                 Button("Not now", action: onClose)
                     .prismClickable()
                 Spacer()
-                Button("Create the selected folders", action: onCreateStructure)
+                Button("Create the selected folders") {
+                    let names = selectedFolders.sorted().joined(separator: ", ")
+                    confirm = SiftConfirm(
+                        title: "Create these folders?",
+                        message: names.isEmpty
+                            ? "No folder is selected."
+                            : "Empty folders are created inside \(activeDestinationName): \(names). No file is moved.",
+                        confirmTitle: "Create folders",
+                        destructive: false,
+                        run: onCreateStructure
+                    )
+                }
                     .buttonStyle(.borderedProminent)
                     .disabled(activeDestinationName.isEmpty || selectedFolders.isEmpty)
                     .prismClickable()
@@ -94,6 +106,7 @@ public struct CatalogStructureWizard: View {
         .padding(24)
         .frame(width: 570)
         .background(PrismTheme.dominantGradient)
+        .siftConfirming($confirm)
     }
 
     private var destinationCaption: String {
