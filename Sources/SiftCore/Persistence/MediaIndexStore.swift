@@ -172,9 +172,7 @@ public final class MediaIndexStore: ObservableObject {
         guard !ids.isEmpty else { return }
         for id in ids {
             guard let record = try fetchAsset(id: id) else { continue }
-            if let path = record.thumbnailPath {
-                try? FileManager.default.removeItem(atPath: path)
-            }
+            ThumbnailCache.deleteIfCached(record.thumbnailPath)
             context.delete(record)
         }
         try flush()
@@ -533,9 +531,7 @@ public final class MediaIndexStore: ObservableObject {
 
     public func wipeCatalog() throws {
         for record in try context.fetch(FetchDescriptor<MediaAssetRecord>()) {
-            if let path = record.thumbnailPath {
-                try? FileManager.default.removeItem(atPath: path)
-            }
+            ThumbnailCache.deleteIfCached(record.thumbnailPath)
             context.delete(record)
         }
         for collection in try context.fetch(FetchDescriptor<StratumCollectionRecord>()) {
@@ -595,9 +591,7 @@ public final class MediaIndexStore: ObservableObject {
         )
         let records = try context.fetch(descriptor)
         for record in records {
-            if let path = record.thumbnailPath {
-                try? FileManager.default.removeItem(atPath: path)
-            }
+            ThumbnailCache.deleteIfCached(record.thumbnailPath)
             context.delete(record)
         }
         try context.save()

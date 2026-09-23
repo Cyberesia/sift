@@ -1368,12 +1368,13 @@ public final class SiftRootSession: ObservableObject {
     }
 
     public func deleteCopiedOrigins() {
-        let fm = FileManager.default
-        for path in pendingDeleteSourcePaths {
-            try? fm.removeItem(atPath: path)
-        }
+        let urls = pendingDeleteSourcePaths.map { URL(fileURLWithPath: $0) }
         pendingDeleteSourcePaths = []
         showConfirmDeleteOrigins = false
+        #if os(macOS)
+        guard !urls.isEmpty else { return }
+        NSWorkspace.shared.recycle(urls) { _, _ in }
+        #endif
     }
 
     public func updateWindowContentSize(_ size: CGSize) {

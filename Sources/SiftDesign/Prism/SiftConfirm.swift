@@ -37,7 +37,7 @@ extension View {
             Button(pending.confirmTitle, role: pending.destructive ? .destructive : nil) {
                 pending.run()
             }
-            Button("Cancel", role: .cancel) {}
+            Button(Locale.current.language.languageCode?.identifier == "fr" ? "Annuler" : "Cancel", role: .cancel) {}
         } message: { pending in
             Text(pending.message)
         }

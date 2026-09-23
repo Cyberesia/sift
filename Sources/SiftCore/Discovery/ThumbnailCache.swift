@@ -24,6 +24,19 @@ public enum ThumbnailCache {
         return dir
     }
 
+    /// True only for a file inside the thumbnail cache. Catalog cleanup must never delete anything else.
+    public static func isCacheFile(_ path: String) -> Bool {
+        let file = URL(fileURLWithPath: path).standardizedFileURL.path
+        let root = cacheDirectory.standardizedFileURL.path
+        let prefix = root.hasSuffix("/") ? root : root + "/"
+        return file.hasPrefix(prefix)
+    }
+
+    public static func deleteIfCached(_ path: String?) {
+        guard let path, isCacheFile(path) else { return }
+        try? FileManager.default.removeItem(atPath: path)
+    }
+
     public static func thumbnailPath(for assetID: String) -> URL {
         let safe = assetID
             .replacingOccurrences(of: "/", with: "_")

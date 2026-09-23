@@ -85,7 +85,10 @@ public struct FolderSourcesPanel: View {
     }
 
     private var footerCopy: String {
-        "Sift scans these folders and lists what it finds in your library. Files stay where they are until you Move or Copy them into a destination. Removing a source clears its catalog only—not files on disk."
+        Self.copy(
+            "Sift scans these folders and lists what it finds. Files stay where they are until you Move or Copy them. Forget folder only removes the folder from this list.",
+            "Sift scanne ces dossiers et liste ce qu’il trouve. Les fichiers restent où ils sont jusqu’à un Move ou un Copy. Oublier le dossier ne retire le dossier que de cette liste."
+        )
     }
 
     @ViewBuilder
@@ -112,11 +115,15 @@ public struct FolderSourcesPanel: View {
                 .help("Choose a replacement location and rebuild this part of the catalog")
                 .prismClickable()
             }
-            Button("Remove", role: .destructive) {
+            Button(Self.copy("Forget folder", "Oublier le dossier"), role: .destructive) {
                 confirm = SiftConfirm(
-                    title: "Remove \(folder.displayName)?",
-                    message: "This folder is forgotten as a source. Files already there stay on the Mac. They disappear from the catalog.",
-                    confirmTitle: "Remove from catalog"
+                    title: Self.copy("Forget \(folder.displayName)?", "Oublier \(folder.displayName) ?"),
+                    message: Self.copy(
+                        "Sift stops listing this folder. The files stay in the folder. Nothing is moved, copied, or deleted.",
+                        "Sift arrête de lister ce dossier. Les fichiers restent dans le dossier. Rien n’est déplacé, copié ou supprimé."
+                    ),
+                    confirmTitle: Self.copy("Forget folder", "Oublier le dossier"),
+                    destructive: false
                 ) {
                     onRemove(folder.id)
                 }
@@ -131,5 +138,9 @@ public struct FolderSourcesPanel: View {
                 RoundedRectangle(cornerRadius: 10).fill(.white.opacity(0.06))
             }
         }
+    }
+
+    private static func copy(_ en: String, _ fr: String) -> String {
+        Locale.current.language.languageCode?.identifier == "fr" ? fr : en
     }
 }
