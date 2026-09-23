@@ -1,0 +1,50 @@
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Swift Package Manager / Xcode
+.build/
+.swiftpm/
+*.xcodeproj
+xcuserdata/
+DerivedData/
+*.dSYM
+*.xcresult
+
+# Local catalog, thumbnails, and app bundle output
+Sift/
+
+# Inspiration checkouts. Credits live in ATTRIBUTIONS.md.
+__inspire/
+
+# Cursor / local agent state — never ship to the public repo
+.cursor/
+.cursorignore
+agent-transcripts/
+*.cursorindexingignore
+
+# Editors
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Logs and temp
+*.log
+tmp/
+temp/
+*.tmp
+
+# CLIP weights are over GitHub's 100MB limit. Fetch with Scripts/fetch-clip-weights.sh
+Sources/SiftCore/Resources/CLIP/CLIP_ImageEncoder.mlmodelc/weights/weight.bin
+Sources/SiftCore/Resources/CLIP/CLIP_TextEncoder.mlmodelc/weights/weight.bin
+
+# Secrets and Sparkle keys
+.env
+.env.*
+!.env.example
+*.dsa
+*.pem
+Scripts/signing.local.env

@@ -1,0 +1,81 @@
+[
+  {
+    "shortDescription" : "CLIP ViT-B\/32 model trained with DataComp-1B (Image Encoder Model)",
+    "metadataOutputVersion" : "3.0",
+    "outputSchema" : [
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float32",
+        "formattedType" : "MultiArray (Float32 1 × 512)",
+        "shortDescription" : "",
+        "shape" : "[1, 512]",
+        "name" : "var_1240",
+        "type" : "MultiArray"
+      }
+    ],
+    "version" : "1.0.0",
+    "modelParameters" : [
+
+    ],
+    "author" : "InspiratioNULL 2026",
+    "specificationVersion" : 6,
+    "storagePrecision" : "Float16",
+    "license" : "MIT",
+    "mlProgramOperationTypeHistogram" : {
+      "Concat" : 1,
+      "Linear" : 49,
+      "SliceByIndex" : 37,
+      "LayerNorm" : 26,
+      "Transpose" : 85,
+      "Matmul" : 24,
+      "Gelu" : 12,
+      "Softmax" : 12,
+      "Mul" : 13,
+      "Cast" : 2,
+      "Reshape" : 109,
+      "Add" : 26,
+      "ExpandDims" : 12,
+      "Squeeze" : 12,
+      "Conv" : 1
+    },
+    "computePrecision" : "Mixed (Float16, Float32, Int32)",
+    "stateSchema" : [
+
+    ],
+    "isUpdatable" : "0",
+    "availability" : {
+      "macOS" : "12.0",
+      "tvOS" : "15.0",
+      "visionOS" : "1.0",
+      "watchOS" : "8.0",
+      "iOS" : "15.0",
+      "macCatalyst" : "15.0"
+    },
+    "modelType" : {
+      "name" : "MLModelType_mlProgram"
+    },
+    "inputSchema" : [
+      {
+        "height" : "224",
+        "colorspace" : "RGB",
+        "isOptional" : "0",
+        "width" : "224",
+        "isColor" : "1",
+        "formattedType" : "Image (Color 224 × 224)",
+        "hasSizeFlexibility" : "0",
+        "type" : "Image",
+        "shortDescription" : "",
+        "name" : "image"
+      }
+    ],
+    "userDefinedMetadata" : {
+      "com.github.apple.coremltools.conversion_date" : "2026-01-15",
+      "com.github.apple.coremltools.source" : "torch==2.9.1",
+      "com.github.apple.coremltools.version" : "9.0",
+      "com.github.apple.coremltools.source_dialect" : "TorchScript"
+    },
+    "generatedClassName" : "CLIP_ImageEncoder",
+    "method" : "predict"
+  }
+]
