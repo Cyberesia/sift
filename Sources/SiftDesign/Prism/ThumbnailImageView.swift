@@ -11,28 +11,42 @@ public struct ThumbnailImageView: View {
     let fallbackURL: URL?
     let contentMode: ContentMode
     let allowOriginalFallback: Bool
+    /// Staggered reveal for spatial galleries: front cards pass 0, cards further back wait longer.
+    /// Nil keeps the plain behavior used by grids and lists.
+    let revealDelay: Double?
 
     @State private var diskImage: PlatformThumbImage?
     @State private var fallbackImage: PlatformThumbImage?
+    @State private var loadedPath: String?
 
     public init(
         path: String?,
         fallbackURL: URL? = nil,
         contentMode: ContentMode = .fit,
-        allowOriginalFallback: Bool = false
+        allowOriginalFallback: Bool = false,
+        revealDelay: Double? = nil
     ) {
         self.path = path
         self.fallbackURL = fallbackURL
         self.contentMode = contentMode
         self.allowOriginalFallback = allowOriginalFallback
+        self.revealDelay = revealDelay
+        #if os(macOS)
+        if let path, let cached = ThumbnailImageLoader.shared.cachedImage(at: path) {
+            _diskImage = State(initialValue: cached)
+            _loadedPath = State(initialValue: path)
+        }
+        #endif
     }
 
     public var body: some View {
         Group {
             if let diskImage {
                 platformImage(diskImage)
+                    .transition(.opacity)
             } else if let fallbackImage {
                 platformImage(fallbackImage)
+                    .transition(.opacity)
             } else {
                 placeholder
             }
@@ -57,26 +71,48 @@ public struct ThumbnailImageView: View {
         #endif
     }
 
+    @ViewBuilder
     private var placeholder: some View {
-        Rectangle()
-            .fill(.quaternary.opacity(0.35))
-            .overlay {
-                Image(systemName: "photo")
-                    .foregroundStyle(.secondary)
-            }
+        if revealDelay != nil {
+            Rectangle()
+                .fill(Color.white.opacity(0.05))
+        } else {
+            Rectangle()
+                .fill(.quaternary.opacity(0.35))
+                .overlay {
+                    Image(systemName: "photo")
+                        .foregroundStyle(.secondary)
+                }
+        }
     }
 
     private func loadThumbnail() async {
-        diskImage = nil
-        fallbackImage = nil
-
         #if os(macOS)
         guard !Task.isCancelled else { return }
+        if let path, loadedPath == path, diskImage != nil { return }
         if let path, FileManager.default.fileExists(atPath: path) {
-            let loaded = await ThumbnailImageLoader.shared.image(at: path)
+            if let cached = ThumbnailImageLoader.shared.cachedImage(at: path) {
+                diskImage = cached
+                fallbackImage = nil
+                loadedPath = path
+                return
+            }
+            let delay = revealDelay ?? 0
+            if delay > 0 {
+                try? await Task.sleep(for: .seconds(delay))
+                guard !Task.isCancelled else { return }
+            }
+            let priority: TaskPriority = revealDelay == 0 ? .userInitiated : .utility
+            let loaded = await ThumbnailImageLoader.shared.image(at: path, priority: priority)
             guard !Task.isCancelled else { return }
-            diskImage = loaded
-            if diskImage != nil { return }
+            if let loaded {
+                withAnimation(revealDelay == nil ? nil : .easeOut(duration: 0.32)) {
+                    diskImage = loaded
+                    fallbackImage = nil
+                }
+                loadedPath = path
+                return
+            }
         }
 
         guard !Task.isCancelled else { return }

@@ -86,6 +86,7 @@ public struct CommandOrb: View {
                                 Image(systemName: "xmark.circle.fill")
                             }
                             .buttonStyle(.plain)
+                            .prismClickable()
                             .foregroundStyle(.secondary)
                         }
                         Text("↩ Search")
@@ -192,6 +193,7 @@ public struct CommandOrb: View {
                 Toggle("Filenames", isOn: $includeFileNames)
                     #if os(macOS)
                     .toggleStyle(.checkbox)
+                    .prismClickable()
                     #endif
                     .font(.caption.weight(.medium))
                     .help("Include file names and text read inside the picture. Off keeps the search on what the picture shows.")
@@ -213,6 +215,7 @@ public struct CommandOrb: View {
                     Spacer()
                     Button("Analyze remaining", action: onRunAnalysis)
                         .buttonStyle(.bordered)
+                        .prismClickable()
                         .controlSize(.small)
                 }
                 .font(.caption2)

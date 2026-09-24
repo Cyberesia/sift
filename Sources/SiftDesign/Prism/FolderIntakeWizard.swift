@@ -128,6 +128,7 @@ public struct FolderIntakeWizard: View {
                 Text("Look inside subfolders")
             }
             .toggleStyle(.switch)
+            .prismClickable()
         }
     }
 

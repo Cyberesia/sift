@@ -62,9 +62,11 @@ public struct MediaMark: View {
                     Text(asset.fileURL.pathExtension.uppercased())
                         .font(.caption2.weight(.bold))
                         .foregroundStyle(.white.opacity(0.7))
-                    Text(GalleryDateLabel.added(asset.addedAt))
-                        .font(.caption2)
-                        .foregroundStyle(.white.opacity(0.75))
+                    if GalleryDateLabel.showsAddedDate(for: asset.kind) {
+                        Text(GalleryDateLabel.added(asset.addedAt))
+                            .font(.caption2)
+                            .foregroundStyle(.white.opacity(0.75))
+                    }
                 }
             }
         }

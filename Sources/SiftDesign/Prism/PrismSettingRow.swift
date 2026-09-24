@@ -41,6 +41,7 @@ public struct PrismSettingRow<Trailing: View, Body: View>: View {
                             .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
+                    .prismClickable()
                     .popover(isPresented: $showInfo) {
                         Text(description)
                             .font(.caption)

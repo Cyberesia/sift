@@ -82,9 +82,9 @@ Document types are docx, xlsx, pptx, pdf, csv, md, mdx, txt, and rtf. Files alre
 
 Grid, list, and Garden. Hovering an item opens its card without opening the full viewer. A click opens the viewer.
 
-Audio tiles show a waveform and the filename, with a player in the card. Video plays in the card. Documents open through Quick Look, including Office files and PDF. Photos keep their image. Every item shows the date it entered the catalog.
+Audio tiles show a waveform and the filename, with a player in the card. Video plays in the card. Documents open through Quick Look, including Office files and PDF. Photos keep their image. Documents and audio show the date they entered the catalog.
 
-Garden is a spatial view of the same catalog: scroll or drag to turn, click a photo to inspect. The sidebar stays quiet: media kinds and people you have accepted.
+Garden is a spatial view of the same catalog, in four layouts: Orbit, Spiral, Depth, and Drift. Scroll or drag to move, and click a photo to inspect. Sift remembers the last layout. The sidebar stays quiet: media kinds and people you have accepted.
 
 ### Review
 

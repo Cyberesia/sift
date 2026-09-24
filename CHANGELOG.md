@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-09-24
+
+### Added
+
+- **Garden layouts** — Orbit, Spiral, Depth, and Drift. Spiral is a funnel: photos rise and grow, and the one in focus zooms downward while staying fully on screen. Depth is a stack you drag, scroll, or step. Drift is moving columns. Sift remembers the last Library view and the last Garden layout.
+- **Floating card** — the detail card floats over the gallery and follows the photo under the pointer, in Grid, List, and Garden.
+
+### Changed
+
+- Dates stay on documents and audio. Photos and videos no longer show the date they entered the catalog.
+- The viewer fades from one photo to the next. The filmstrip scrolls with the vertical wheel, and the stage keeps one height. Buttons show the hand cursor.
+
+### Fixed
+
+- Forgetting a source only drops it from the catalog. Thumbnail cleanup cannot delete anything outside the cache, and removing originals after a copy sends them to the Trash.
+
 ## [0.1.1] - 2026-09-23
 
 First downloadable release. Version 0.1.0 was the source snapshot on `main`. It was never published as a GitHub Release, and it had no DMG.
@@ -37,6 +53,7 @@ Sift catalogs photos, video, audio, and documents where they already are. Nothin
 - **Quiet updates** — a change inside a saved folder checks those files. A full walk of a folder such as Downloads happens when you choose Look again.
 - **Jev (optional)** — with a key saved, Return can route a command or pick among a short list. No key, or a low-confidence answer, keeps the local result. Pixels and document text stay on this Mac.
 
-[Unreleased]: https://github.com/Cyberesia/sift/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/Cyberesia/sift/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/Cyberesia/sift/releases/tag/v0.1.2
 [0.1.1]: https://github.com/Cyberesia/sift/releases/tag/v0.1.1
 [0.1.0]: https://github.com/Cyberesia/sift/releases/tag/v0.1.0

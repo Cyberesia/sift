@@ -46,6 +46,7 @@ public struct PrismPersonTagRow: View {
                 HStack(spacing: 8) {
                     Button("Save name") { commit() }
                         .buttonStyle(.borderedProminent)
+                        .prismClickable()
                         .controlSize(.small)
                         .disabled(draftName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
@@ -55,6 +56,7 @@ public struct PrismPersonTagRow: View {
                             onCommit("")
                         }
                         .buttonStyle(.bordered)
+                        .prismClickable()
                         .controlSize(.small)
                     }
                 }

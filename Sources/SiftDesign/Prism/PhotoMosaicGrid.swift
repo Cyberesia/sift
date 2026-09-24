@@ -19,17 +19,6 @@ public struct PhotoMosaicTile: View {
                         .padding(7)
                         .background(Circle().fill(.black.opacity(0.45)))
                 }
-                VStack {
-                    Spacer()
-                    Text(GalleryDateLabel.added(asset.addedAt))
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 4)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(.black.opacity(0.45))
-                }
             } else {
                 MediaMark(asset: asset, showsName: true)
             }

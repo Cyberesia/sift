@@ -43,6 +43,7 @@ public struct TransferModePicker: View {
                 }
             }
             .pickerStyle(.segmented)
+            .prismClickable()
             .labelsHidden()
 
             Text(mode.detail)

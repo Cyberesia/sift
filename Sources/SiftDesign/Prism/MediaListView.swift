@@ -33,6 +33,7 @@ public struct MediaListView: View {
                         MediaListRow(asset: asset, isHovered: hoveredID == asset.id)
                     }
                     .buttonStyle(.plain)
+                    .prismClickable()
                     .onHover { hovering in
                         if hovering {
                             hoveredID = asset.id
@@ -81,9 +82,11 @@ private struct MediaListRow: View {
 
             Spacer()
 
-            Text(GalleryDateLabel.added(asset.addedAt))
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+            if GalleryDateLabel.showsAddedDate(for: asset.kind) {
+                Text(GalleryDateLabel.added(asset.addedAt))
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
 
             if asset.kind == .video {
                 Image(systemName: "film")

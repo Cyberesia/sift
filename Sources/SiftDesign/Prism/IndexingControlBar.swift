@@ -62,9 +62,11 @@ public struct IndexingControlBar: View {
         }
         #if os(macOS)
         .buttonStyle(.bordered)
+        .prismClickable()
         .tint(prominent ? PrismTheme.accent : nil)
         #else
         .buttonStyle(.plain)
+        .prismClickable()
         .background(
             Capsule()
                 .fill(prominent ? ColorPrismTheme.accent.opacity(0.35) : Color.white.opacity(0.1))

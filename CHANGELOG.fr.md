@@ -7,6 +7,22 @@ Le détail anglais est dans [CHANGELOG.md](./CHANGELOG.md).
 
 ## [Non publié]
 
+## [0.1.2] - 2026-09-24
+
+### Ajouté
+
+- **Dispositions Garden** — Orbit, Spiral, Depth et Drift. Spiral est un entonnoir : les photos montent et grandissent, et celle au point net zoome vers le bas en restant entièrement à l’écran. Depth est une pile que l’on glisse, fait défiler ou avance. Drift, ce sont des colonnes en mouvement. Sift retient la dernière vue de la Bibliothèque et la dernière disposition Garden.
+- **Carte flottante** — la fiche flotte au-dessus de la galerie et suit la photo sous le pointeur, en Grille, en Liste et dans Garden.
+
+### Modifié
+
+- Les dates restent sur les documents et l’audio. Les photos et les vidéos n’affichent plus la date d’entrée dans le catalogue.
+- Le lecteur passe d’une photo à l’autre en fondu. La bande de vignettes défile avec la molette verticale, et la scène garde une hauteur fixe. Les boutons montrent le curseur main.
+
+### Corrigé
+
+- Oublier une source ne la retire que du catalogue. Le nettoyage des vignettes ne peut rien effacer hors du cache, et retirer les originaux après une copie les envoie à la Corbeille.
+
 ## [0.1.1] - 2026-09-23
 
 Première version téléchargeable. La 0.1.0 est l’instantané des sources sur `main`. Elle n’a jamais été publiée comme release GitHub, et elle n’avait pas de DMG.
@@ -38,6 +54,7 @@ Sift catalogue les photos, vidéos, audios et documents là où ils sont déjà.
 - **Mises à jour discrètes** — un changement dans un dossier enregistré ne vérifie que ces fichiers. Un parcours complet, par exemple de Téléchargements, n’a lieu que si vous choisissez Look again.
 - **Jev (optionnel)** — avec une clé enregistrée, Entrée peut ouvrir un écran ou choisir dans une courte liste. Sans clé, ou si la réponse est peu sûre, le résultat local reste. Les pixels et le texte des documents restent sur ce Mac.
 
-[Non publié]: https://github.com/Cyberesia/sift/compare/v0.1.1...HEAD
+[Non publié]: https://github.com/Cyberesia/sift/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/Cyberesia/sift/releases/tag/v0.1.2
 [0.1.1]: https://github.com/Cyberesia/sift/releases/tag/v0.1.1
 [0.1.0]: https://github.com/Cyberesia/sift/releases/tag/v0.1.0

@@ -23,8 +23,26 @@ public actor PreviewImageCache {
     private var storage: [String: Entry] = [:]
     private var order: [String] = []
     private let maxEntries = 16
+    #if os(macOS)
+    /// Readable without awaiting the actor, so the viewer can show a cached preview in the same frame.
+    private nonisolated(unsafe) let mirror: NSCache<NSString, CachedPreview> = {
+        let cache = NSCache<NSString, CachedPreview>()
+        cache.countLimit = 16
+        return cache
+    }()
+    #endif
 
     private init() {}
+
+    #if os(macOS)
+    public nonisolated func cachedImage(
+        for asset: MediaAssetSummary,
+        maxPixelSize: Int = 1920
+    ) -> (image: PlatformPreviewImage, pixelSize: CGSize)? {
+        guard let hit = mirror.object(forKey: "\(asset.id)-\(maxPixelSize)" as NSString) else { return nil }
+        return (hit.image, hit.pixelSize)
+    }
+    #endif
 
     public func image(
         for asset: MediaAssetSummary,
@@ -89,6 +107,9 @@ public actor PreviewImageCache {
     }
 
     public func clear() {
+        #if os(macOS)
+        mirror.removeAllObjects()
+        #endif
         storage.removeAll()
         order.removeAll()
     }
@@ -99,6 +120,9 @@ public actor PreviewImageCache {
 
     private func store(key: String, entry: Entry) {
         storage[key] = entry
+        #if os(macOS)
+        mirror.setObject(CachedPreview(image: entry.image, pixelSize: entry.pixelSize), forKey: key as NSString)
+        #endif
         touch(key)
         while order.count > maxEntries, let evict = order.first {
             order.removeFirst()
@@ -113,6 +137,16 @@ public actor PreviewImageCache {
 }
 
 #if os(macOS)
+private final class CachedPreview: @unchecked Sendable {
+    let image: NSImage
+    let pixelSize: CGSize
+
+    init(image: NSImage, pixelSize: CGSize) {
+        self.image = image
+        self.pixelSize = pixelSize
+    }
+}
+
 public typealias PlatformPreviewImage = NSImage
 #else
 public typealias PlatformPreviewImage = Never

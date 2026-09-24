@@ -29,9 +29,11 @@ public struct AssetDetailView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-            Text(GalleryDateLabel.added(asset.addedAt))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            if GalleryDateLabel.showsAddedDate(for: asset.kind) {
+                Text(GalleryDateLabel.added(asset.addedAt))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             metadataGrid
             if asset.faceCount > 0 || asset.pipeline == .people {
                 PrismPersonTagRow(
@@ -52,6 +54,7 @@ public struct AssetDetailView: View {
                                 ThumbnailStripTile(asset: item, size: 72)
                             }
                             .buttonStyle(.plain)
+                            .prismClickable()
                         }
                     }
                     .padding(.vertical, 2)

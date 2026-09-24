@@ -37,7 +37,10 @@ public final class SiftRootSession: ObservableObject {
     @Published public var includeFileNamesInSearch = UserDefaults.standard.bool(forKey: "sift.search.includeFileNames")
     @Published public var selectedAsset: MediaAssetSummary?
     @Published public var relatedAssets: [MediaAssetSummary] = []
-    @Published public var libraryViewMode: LibraryViewMode = .grid
+    @Published public var libraryViewMode: LibraryViewMode =
+        LibraryViewMode(rawValue: UserDefaults.standard.string(forKey: "sift.library.viewMode") ?? "") ?? .grid {
+        didSet { UserDefaults.standard.set(libraryViewMode.rawValue, forKey: "sift.library.viewMode") }
+    }
     @Published public var visualDirections: Set<VisualDirection> = []
     @Published public var browseScope: LibraryBrowseScope = .allSources
     @Published public var librarySort: LibraryAssetSort = .dateModifiedNewest

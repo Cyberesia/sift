@@ -113,6 +113,7 @@ public struct PrismSettingsView: View {
                                 Label("Why?", systemImage: "questionmark.circle")
                             }
                             .buttonStyle(.bordered)
+                            .prismClickable()
                             .popover(isPresented: $showJevHelp) {
                                 VStack(alignment: .leading, spacing: 10) {
                                     Text("How Jev is used")

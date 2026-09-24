@@ -19,6 +19,8 @@ public struct PrismShellView: View {
     @State private var hoveredLibraryAsset: MediaAssetSummary?
     @State private var showHelp = false
     @State private var clearLibraryHover: Task<Void, Never>?
+    @State private var cardOnLeading = false
+    @State private var pointerProbe = LibraryPointerProbe()
 
     public init(session: SiftRootSession) {
         self.session = session
@@ -446,31 +448,117 @@ public struct PrismShellView: View {
                     subfolderOptions: session.browseSubfolderOptions,
                     filteredCount: session.displayedAssets.count
                 )
-                HStack(spacing: 16) {
+                ZStack {
                     libraryBrowser
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    if let cardAsset = hoveredLibraryAsset ?? session.selectedAsset {
-                        AssetDetailView(
-                            asset: cardAsset,
-                            related: cardAsset.id == session.selectedAsset?.id ? session.relatedAssets : [],
-                            onOpenRelated: session.openPreview,
-                            onPersonLabelCommit: { name in
-                                session.setPersonLabel(assetID: cardAsset.id, name: name)
-                            }
-                        )
-                        .frame(width: 320)
-                        .onHover { hovering in
-                            if hovering {
-                                clearLibraryHover?.cancel()
-                            } else {
-                                noteLibraryHover(nil)
+                        .onContinuousHover { phase in
+                            if case .active(let location) = phase {
+                                pointerProbe.x = location.x
                             }
                         }
-                    }
+                        .background {
+                            GeometryReader { geo in
+                                Color.clear
+                                    .onAppear { pointerProbe.width = geo.size.width }
+                                    .onChange(of: geo.size.width) { _, width in
+                                        pointerProbe.width = width
+                                    }
+                            }
+                        }
+                    floatingDetailCard
                 }
+                .animation(.spring(response: 0.34, dampingFraction: 0.86), value: floatingCardKey)
             }
             .padding(12)
         }
+    }
+
+    /// The detail card floats over the gallery instead of taking a column from it.
+    /// A hover card sits on the side away from the pointer and lets clicks pass through.
+    /// The card for a selected item stays on the trailing side and can be closed.
+    @ViewBuilder
+    private var floatingDetailCard: some View {
+        let hovered = hoveredLibraryAsset
+        if let cardAsset = hovered ?? session.selectedAsset {
+            let isHoverCard = hovered != nil
+            let leading = isHoverCard && cardOnLeading
+            let inGarden = session.libraryViewMode == .orbit
+            ViewThatFits(in: .vertical) {
+                detailCard(cardAsset)
+                ScrollView(showsIndicators: false) {
+                    detailCard(cardAsset)
+                }
+            }
+            .frame(width: 300)
+            .overlay(alignment: .topTrailing) {
+                if !isHoverCard {
+                    Button {
+                        hoveredLibraryAsset = nil
+                        session.selectedAsset = nil
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 26, height: 26)
+                            .background(.black.opacity(0.45), in: Circle())
+                            .overlay { Circle().strokeBorder(.white.opacity(0.2), lineWidth: 1) }
+                    }
+                    .buttonStyle(.plain)
+                    .prismClickable()
+                    .help("Close")
+                    .padding(10)
+                }
+            }
+            .shadow(color: .black.opacity(0.45), radius: 28, y: 14)
+            .allowsHitTesting(!isHoverCard)
+            .padding(.top, inGarden ? 46 : 12)
+            .padding(.bottom, inGarden ? 52 : 12)
+            .padding(.horizontal, 14)
+            .frame(
+                maxWidth: .infinity,
+                maxHeight: .infinity,
+                alignment: cardAlignment(leading: leading, inGarden: inGarden)
+            )
+            .transition(
+                .opacity.combined(with: .scale(scale: 0.96, anchor: cardAnchor(leading: leading, inGarden: inGarden)))
+            )
+            .id(leading)
+        }
+    }
+
+    /// The Garden stages draw their strongest motion near the top, so the card rests at the bottom there.
+    private func cardAlignment(leading: Bool, inGarden: Bool) -> Alignment {
+        switch (leading, inGarden) {
+        case (true, true): .bottomLeading
+        case (false, true): .bottomTrailing
+        case (true, false): .topLeading
+        case (false, false): .topTrailing
+        }
+    }
+
+    private func cardAnchor(leading: Bool, inGarden: Bool) -> UnitPoint {
+        switch (leading, inGarden) {
+        case (true, true): .bottomLeading
+        case (false, true): .bottomTrailing
+        case (true, false): .topLeading
+        case (false, false): .topTrailing
+        }
+    }
+
+    private func detailCard(_ cardAsset: MediaAssetSummary) -> some View {
+        AssetDetailView(
+            asset: cardAsset,
+            related: cardAsset.id == session.selectedAsset?.id ? session.relatedAssets : [],
+            onOpenRelated: session.openPreview,
+            onPersonLabelCommit: { name in
+                session.setPersonLabel(assetID: cardAsset.id, name: name)
+            }
+        )
+    }
+
+    private var floatingCardKey: String {
+        let shown = (hoveredLibraryAsset ?? session.selectedAsset) != nil
+        return "\(shown)-\(hoveredLibraryAsset != nil && cardOnLeading)"
     }
 
     private var reviewMode: some View {
@@ -529,6 +617,7 @@ public struct PrismShellView: View {
                 directions: $session.visualDirections,
                 hasMore: session.hasMoreLibraryAssets,
                 onLoadMore: session.loadNextLibraryPage,
+                onHoverAsset: noteLibraryHover,
                 onOpen: { session.openPreview($0) }
             )
         }
@@ -537,6 +626,10 @@ public struct PrismShellView: View {
     private func noteLibraryHover(_ asset: MediaAssetSummary?) {
         if let asset {
             clearLibraryHover?.cancel()
+            let onLeading = pointerProbe.x > pointerProbe.width * 0.5
+            if cardOnLeading != onLeading {
+                cardOnLeading = onLeading
+            }
             hoveredLibraryAsset = asset
         } else {
             clearLibraryHover?.cancel()
@@ -554,6 +647,12 @@ public struct PrismShellView: View {
         session.appMode = .sources
         #endif
     }
+}
+
+/// Pointer position over the gallery. A reference type, so moving the mouse does not re-render the shell.
+private final class LibraryPointerProbe {
+    var x: CGFloat = 0
+    var width: CGFloat = 1
 }
 
 extension Notification.Name {

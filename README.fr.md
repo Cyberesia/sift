@@ -78,9 +78,9 @@ Les types de documents sont docx, xlsx, pptx, pdf, csv, md, mdx, txt et rtf. Les
 
 Grille, liste et Garden. Survoler un élément ouvre sa carte sans ouvrir le grand lecteur. Un clic ouvre le lecteur.
 
-Les tuiles audio montrent une forme d’onde et le nom du fichier, avec un lecteur dans la carte. La vidéo se lit dans la carte. Les documents s’ouvrent dans Quick Look, y compris les fichiers Office et les PDF. Les photos gardent leur image. Chaque élément affiche la date d’entrée dans le catalogue.
+Les tuiles audio montrent une forme d’onde et le nom du fichier, avec un lecteur dans la carte. La vidéo se lit dans la carte. Les documents s’ouvrent dans Quick Look, y compris les fichiers Office et les PDF. Les photos gardent leur image. Les documents et l’audio affichent la date d’entrée dans le catalogue.
 
-Garden est une vue spatiale du même catalogue : défilez ou glissez pour tourner, cliquez une photo pour l’inspecter. La barre latérale reste calme : types de médias et personnes que vous avez acceptées.
+Garden est une vue spatiale du même catalogue, en quatre dispositions : Orbit, Spiral, Depth et Drift. Défilez ou glissez pour avancer, cliquez une photo pour l’inspecter. Sift retient la dernière disposition. La barre latérale reste calme : types de médias et personnes que vous avez acceptées.
 
 ### Revue
 

@@ -37,6 +37,11 @@ public struct MediaAssetSummary: Sendable, Identifiable, Hashable {
 }
 
 public enum GalleryDateLabel {
+    /// Photos and videos stay undated in the gallery. Documents and audio keep the catalog date.
+    public static func showsAddedDate(for kind: MediaKind) -> Bool {
+        kind == .document || kind == .audio
+    }
+
     public static func added(_ date: Date) -> String {
         "Added \(date.formatted(date: .abbreviated, time: .omitted))"
     }

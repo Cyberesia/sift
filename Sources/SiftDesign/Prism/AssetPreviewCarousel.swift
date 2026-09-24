@@ -27,6 +27,11 @@ public struct AssetPreviewCarousel: View {
     @State private var loadToken = UUID()
     @State private var videoPlaying = true
     @State private var scopedAccessURL: URL?
+    @State private var stripPosition = ScrollPosition(idType: Int.self)
+    @State private var stripProbe = StripScrollProbe()
+    /// The asset whose image is currently in `displayImage`, so a later load for it only sharpens it.
+    @State private var displayedAssetID: String?
+    @State private var stageHovered = false
 
     private let previewMaxPixelSize = 1920
 
@@ -75,22 +80,14 @@ public struct AssetPreviewCarousel: View {
     private var topBarHeight: CGFloat { 58 }
     private var thumbnailStripHeight: CGFloat { 88 }
 
-    private var stageContentWidth: CGFloat {
-        let inspector = (showInspector && !isFullscreen) ? inspectorWidth : 0
-        return max(effectiveSize.width - inspector - 24, 200)
+    /// Fades run when the photo changes or first appears; the sharp version replaces its thumbnail in place.
+    private var stageImageKey: String {
+        "\(displayedAssetID ?? "")-\(displayImage != nil)"
     }
 
-    /// Stage height follows image aspect ratio so portrait shots don't leave a dead zone above the filmstrip.
+    /// The stage keeps one height for every photo, so switching photos never re-lays out the viewer.
     private var stageAreaHeight: CGFloat {
-        let maxStage = max(effectiveSize.height - topBarHeight - thumbnailStripHeight, 180)
-        let aspect: CGSize = {
-            if currentAsset?.kind == .video {
-                return imagePixelSize ?? CGSize(width: 16, height: 9)
-            }
-            return imagePixelSize ?? CGSize(width: 3, height: 2)
-        }()
-        let natural = stageContentWidth * aspect.height / max(aspect.width, 1)
-        return min(maxStage, max(natural, 160))
+        max(effectiveSize.height - topBarHeight - thumbnailStripHeight, 180)
     }
 
     public var body: some View {
@@ -117,6 +114,9 @@ public struct AssetPreviewCarousel: View {
         .onDisappear { endMediaAccess() }
         .onExitCommand(perform: onClose)
         #if os(macOS)
+        .background {
+            PrismWheelRegion(layer: 10) { _ in .deliver }
+        }
         .background(
             CarouselKeyboardMonitor(
                 onLeft: { step(-1) },
@@ -168,7 +168,7 @@ public struct AssetPreviewCarousel: View {
             height: topBarHeight + stageAreaHeight + thumbnailStripHeight
         )
         .fixedSize()
-        .animation(.easeInOut(duration: 0.22), value: stageAreaHeight)
+        .animation(.smooth(duration: 0.24), value: stageAreaHeight)
         .background(
             RoundedRectangle(cornerRadius: isFullscreen ? 0 : 28, style: .continuous)
                 .fill(.ultraThinMaterial)
@@ -272,14 +272,15 @@ public struct AssetPreviewCarousel: View {
             } else if let displayImage {
                 Image(nsImage: displayImage)
                     .resizable()
+                    .interpolation(.medium)
                     .scaledToFit()
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .shadow(color: .black.opacity(0.35), radius: 24, y: 12)
-                    .id(selectionIndex)
                     .padding(6)
-            } else {
-                ProgressView()
-                    .controlSize(.large)
+                    .id(displayedAssetID ?? "")
+                    .transition(.asymmetric(
+                        insertion: .opacity.animation(.easeOut(duration: 0.16)),
+                        removal: .opacity.animation(.easeIn(duration: 0.1))
+                    ))
             }
             #else
             ProgressView()
@@ -313,10 +314,12 @@ public struct AssetPreviewCarousel: View {
                 Spacer()
                 carouselNavControl(direction: .next)
             }
-            .padding(.horizontal, 10)
+            .padding(.horizontal, 16)
         }
+        .animation(.easeOut(duration: 0.16), value: stageImageKey)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.horizontal, 12)
+        .onHover { stageHovered = $0 }
         #if os(macOS)
         .onTapGesture(count: 2) { toggleFullscreen() }
         #endif
@@ -440,29 +443,59 @@ public struct AssetPreviewCarousel: View {
     }
 
     private var thumbnailStrip: some View {
-        ScrollViewReader { proxy in
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 10) {
-                    ForEach(Array(assets.enumerated()), id: \.element.id) { index, asset in
-                        thumbnailCell(asset: asset, index: index)
-                            .id(index)
-                    }
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 10)
-            }
-            .frame(maxHeight: .infinity)
-            .background(.black.opacity(0.35))
-            .onChange(of: selectionIndex) { _, newIndex in
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    proxy.scrollTo(newIndex, anchor: .center)
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(spacing: 10) {
+                ForEach(Array(assets.enumerated()), id: \.element.id) { index, asset in
+                    thumbnailCell(asset: asset, index: index)
+                        .id(index)
                 }
             }
-            .onAppear {
-                proxy.scrollTo(selectionIndex, anchor: .center)
+            .scrollTargetLayout()
+            .padding(.horizontal, 20)
+            .padding(.vertical, 10)
+        }
+        .scrollPosition($stripPosition)
+        .onScrollGeometryChange(for: StripGeometry.self) { geometry in
+            StripGeometry(
+                offset: geometry.contentOffset.x,
+                maxOffset: max(0, geometry.contentSize.width - geometry.containerSize.width)
+            )
+        } action: { _, geometry in
+            stripProbe.offset = geometry.offset
+            stripProbe.maxOffset = geometry.maxOffset
+        }
+        .frame(maxHeight: .infinity)
+        .background(.black.opacity(0.35))
+        #if os(macOS)
+        .background {
+            PrismWheelRegion(layer: 11) { event in
+                scrollStrip(with: event)
             }
         }
+        #endif
+        .onChange(of: selectionIndex) { _, newIndex in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                stripPosition.scrollTo(id: newIndex, anchor: .center)
+            }
+        }
+        .onAppear {
+            stripPosition.scrollTo(id: selectionIndex, anchor: .center)
+        }
     }
+
+    #if os(macOS)
+    /// A vertical wheel or swipe scrolls the strip sideways. Horizontal swipes keep the native scrolling.
+    private func scrollStrip(with event: NSEvent) -> PrismWheelDecision {
+        let deltaX = event.scrollingDeltaX
+        let deltaY = event.scrollingDeltaY
+        guard abs(deltaY) > abs(deltaX) else { return .deliver }
+        let step = event.hasPreciseScrollingDeltas ? deltaY : deltaY * 12
+        let target = min(max(stripProbe.offset - step, 0), stripProbe.maxOffset)
+        stripProbe.offset = target
+        stripPosition.scrollTo(x: target)
+        return .consume
+    }
+    #endif
 
     private func toolbarIconButton(
         _ systemName: String,
@@ -479,6 +512,7 @@ public struct AssetPreviewCarousel: View {
         }
         #if os(macOS)
         .buttonStyle(.borderless)
+        .prismClickable()
         #else
         .buttonStyle(.plain)
         #endif
@@ -490,18 +524,15 @@ public struct AssetPreviewCarousel: View {
     private func thumbnailCell(asset: MediaAssetSummary, index: Int) -> some View {
         let isSelected = index == selectionIndex
         return Button {
-            guard index != selectionIndex else { return }
-            withAnimation(.spring(response: 0.28, dampingFraction: 0.9)) {
-                selectionIndex = index
-            }
+            select(index)
         } label: {
-            ThumbnailStripTile(asset: asset, size: isSelected ? 72 : 58, allowOriginalFallback: true)
+            ThumbnailStripTile(asset: asset, size: 60, allowOriginalFallback: true)
                 .overlay {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .strokeBorder(isSelected ? PrismTheme.accent : .clear, lineWidth: 2)
                 }
-                .scaleEffect(isSelected ? 1.05 : 1)
-                .shadow(color: isSelected ? PrismTheme.accent.opacity(0.4) : .clear, radius: 8)
+                .scaleEffect(isSelected ? 1.14 : 1)
+                .animation(.easeOut(duration: 0.16), value: isSelected)
         }
         .buttonStyle(.plain)
         .prismClickable()
@@ -512,8 +543,8 @@ public struct AssetPreviewCarousel: View {
 
         var icon: String {
             switch self {
-            case .previous: "arrow.left"
-            case .next: "arrow.right"
+            case .previous: "chevron.left"
+            case .next: "chevron.right"
             }
         }
 
@@ -537,32 +568,17 @@ public struct AssetPreviewCarousel: View {
             step(direction == .previous ? -1 : 1)
         } label: {
             Image(systemName: direction.icon)
-                .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(.white.opacity(enabled ? 0.95 : 0.4))
-                .frame(width: 40, height: 64)
-                .background {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(.ultraThinMaterial)
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .strokeBorder(
-                                    LinearGradient(
-                                        colors: [
-                                            .white.opacity(enabled ? 0.45 : 0.15),
-                                            PrismTheme.accent.opacity(enabled ? 0.35 : 0.08),
-                                        ],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    ),
-                                    lineWidth: 1
-                                )
-                        }
-                        .shadow(color: .black.opacity(0.35), radius: 12, y: 4)
-                }
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.92))
+                .frame(width: 34, height: 34)
+                .background(Circle().fill(.black.opacity(stageHovered ? 0.42 : 0.26)))
+                .overlay { Circle().strokeBorder(.white.opacity(0.14), lineWidth: 1) }
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .disabled(!enabled)
-        .opacity(enabled ? 1 : 0.5)
+        .opacity(enabled ? (stageHovered ? 1 : 0.55) : 0)
+        .allowsHitTesting(enabled)
+        .animation(.easeOut(duration: 0.18), value: stageHovered)
         .help(direction.help)
         .prismClickable()
     }
@@ -595,9 +611,39 @@ public struct AssetPreviewCarousel: View {
 
     private func step(_ delta: Int) {
         guard !assets.isEmpty else { return }
-        let next = min(max(selectionIndex + delta, 0), assets.count - 1)
-        guard next != selectionIndex else { return }
-        selectionIndex = next
+        select(min(max(selectionIndex + delta, 0), assets.count - 1))
+    }
+
+    /// Switches photo in one short crossfade. The best cached image is shown in the same frame,
+    /// so the fade never runs on the previous photo or an empty stage.
+    private func select(_ index: Int) {
+        guard index != selectionIndex, assets.indices.contains(index) else { return }
+        withAnimation(.easeOut(duration: 0.2)) {
+            selectionIndex = index
+            applyCachedImage(for: assets[index])
+        }
+    }
+
+    /// Returns true when the full preview was already cached.
+    @discardableResult
+    private func applyCachedImage(for asset: MediaAssetSummary) -> Bool {
+        #if os(macOS)
+        guard asset.kind != .video else { return false }
+        if let cached = PreviewImageCache.shared.cachedImage(for: asset, maxPixelSize: previewMaxPixelSize) {
+            if displayImage !== cached.image { displayImage = cached.image }
+            imagePixelSize = cached.pixelSize
+            displayedAssetID = asset.id
+            return true
+        }
+        if let path = asset.thumbnailPath, let thumb = ThumbnailImageLoader.shared.cachedImage(at: path) {
+            if displayImage !== thumb, displayedAssetID != asset.id { displayImage = thumb }
+        } else if displayedAssetID != asset.id {
+            displayImage = nil
+        }
+        if displayedAssetID != asset.id { imagePixelSize = nil }
+        displayedAssetID = asset.id
+        #endif
+        return false
     }
 
     private func clampSelection() {
@@ -635,6 +681,7 @@ public struct AssetPreviewCarousel: View {
 
         if asset.kind == .video {
             displayImage = nil
+            displayedAssetID = nil
             isLoadingHighRes = false
             videoPlaying = true
             let url = asset.fileURL
@@ -650,18 +697,19 @@ public struct AssetPreviewCarousel: View {
         }
 
         let url = asset.fileURL
+        let neighbors = neighborAssets(around: selectionIndex)
+        if applyCachedImage(for: asset) {
+            isLoadingHighRes = false
+            prefetchNeighbors(neighbors)
+            return
+        }
         Task { @MainActor in
-            let instant = await PreviewImageCache.shared.instantThumbnail(for: asset)
-            guard loadToken == token else { return }
-            displayImage = instant
-            isLoadingHighRes = instant == nil
-
-            let neighbors = neighborAssets(around: selectionIndex)
-            #if os(macOS)
-            let thumbPaths = ([asset] + neighbors).compactMap(\.thumbnailPath)
-            await ThumbnailImageLoader.shared.prefetch(paths: thumbPaths)
-            #endif
-            await PreviewImageCache.shared.prefetch(neighbors, maxPixelSize: previewMaxPixelSize)
+            if displayImage == nil {
+                let instant = await PreviewImageCache.shared.instantThumbnail(for: asset)
+                guard loadToken == token else { return }
+                if let instant { displayImage = instant }
+            }
+            isLoadingHighRes = true
 
             async let dimensions = Task.detached(priority: .utility) {
                 SafeImageLoader.pixelSize(at: url)
@@ -678,6 +726,18 @@ public struct AssetPreviewCarousel: View {
                 if let size = result.pixelSize { imagePixelSize = size }
             }
             isLoadingHighRes = false
+            prefetchNeighbors(neighbors)
+        }
+    }
+
+    /// Neighbours load after the current photo, so they never delay it.
+    private func prefetchNeighbors(_ neighbors: [MediaAssetSummary]) {
+        let size = previewMaxPixelSize
+        Task {
+            #if os(macOS)
+            await ThumbnailImageLoader.shared.prefetch(paths: neighbors.compactMap(\.thumbnailPath))
+            #endif
+            await PreviewImageCache.shared.prefetch(neighbors, maxPixelSize: size)
         }
     }
 
@@ -689,6 +749,17 @@ public struct AssetPreviewCarousel: View {
         if index - 2 >= 0 { list.append(assets[index - 2]) }
         return list
     }
+}
+
+private struct StripGeometry: Equatable {
+    var offset: CGFloat
+    var maxOffset: CGFloat
+}
+
+/// Strip scroll offset kept outside SwiftUI state, so scrolling does not re-render the whole viewer.
+private final class StripScrollProbe {
+    var offset: CGFloat = 0
+    var maxOffset: CGFloat = 0
 }
 
 // MARK: - Flow layout

@@ -84,6 +84,7 @@ public struct SiftResetSheet: View {
                 }
             }
             .toggleStyle(.switch)
+            .prismClickable()
 
             Toggle(isOn: $resetSettings) {
                 VStack(alignment: .leading, spacing: 3) {

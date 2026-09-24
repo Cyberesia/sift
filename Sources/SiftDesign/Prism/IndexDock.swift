@@ -288,6 +288,7 @@ public struct IndexDock: View {
             .padding(.vertical, 10)
         }
         .buttonStyle(.plain)
+        .prismClickable()
         .background(.ultraThinMaterial, in: Capsule())
         .overlay {
             Capsule().strokeBorder(PrismTheme.glassStrokeGradient, lineWidth: 1)

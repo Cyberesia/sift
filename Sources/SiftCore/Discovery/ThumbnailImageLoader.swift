@@ -14,7 +14,8 @@ public actor ThumbnailImageLoader {
     public static let shared = ThumbnailImageLoader()
 
     #if os(macOS)
-    private let cache = NSCache<NSString, NSImage>()
+    /// NSCache is thread-safe, so a hit can be read synchronously while the view is built.
+    private nonisolated(unsafe) let cache = NSCache<NSString, NSImage>()
     private var inflight: [String: Task<ThumbnailBox?, Never>] = [:]
     #endif
 
@@ -26,7 +27,11 @@ public actor ThumbnailImageLoader {
     }
 
     #if os(macOS)
-    public func image(at path: String) async -> NSImage? {
+    public nonisolated func cachedImage(at path: String) -> NSImage? {
+        cache.object(forKey: path as NSString)
+    }
+
+    public func image(at path: String, priority: TaskPriority = .utility) async -> NSImage? {
         let key = path as NSString
         if let hit = cache.object(forKey: key) {
             return hit
@@ -34,7 +39,7 @@ public actor ThumbnailImageLoader {
         if let task = inflight[path] {
             return await task.value?.image
         }
-        let task = Task.detached(priority: .utility) { () -> ThumbnailBox? in
+        let task = Task.detached(priority: priority) { () -> ThumbnailBox? in
             guard !Task.isCancelled,
                   let source = CGImageSourceCreateWithURL(
                     URL(fileURLWithPath: path) as CFURL,

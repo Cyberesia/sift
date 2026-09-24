@@ -71,7 +71,7 @@ public enum SiftAppVersion {
     public static var current: String {
         let bundled = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
         let trimmed = bundled?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return trimmed.isEmpty ? "0.1.1" : trimmed
+        return trimmed.isEmpty ? "0.1.2" : trimmed
     }
 }
 

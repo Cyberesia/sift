@@ -11,6 +11,7 @@ public struct OrbitGardenView: View {
     @Binding var directions: Set<VisualDirection>
     let hasMore: Bool
     let onLoadMore: () -> Void
+    let onHoverAsset: (MediaAssetSummary?) -> Void
     let onOpen: (MediaAssetSummary) -> Void
 
     @State private var yaw: Double = -8
@@ -25,6 +26,7 @@ public struct OrbitGardenView: View {
     @State private var openness: Double = 0.12
     @State private var openGeneration = 0
     @State private var hoveredAssetID: String?
+    @AppStorage("sift.garden.stage") private var stage: GardenStage = .orbit
     private let ringCount = 32
 
     public init(
@@ -32,40 +34,87 @@ public struct OrbitGardenView: View {
         directions: Binding<Set<VisualDirection>>,
         hasMore: Bool = false,
         onLoadMore: @escaping () -> Void = {},
+        onHoverAsset: @escaping (MediaAssetSummary?) -> Void = { _ in },
         onOpen: @escaping (MediaAssetSummary) -> Void
     ) {
         self.assets = assets
         _directions = directions
         self.hasMore = hasMore
         self.onLoadMore = onLoadMore
+        self.onHoverAsset = onHoverAsset
         self.onOpen = onOpen
     }
 
     public var body: some View {
         VStack(spacing: 10) {
-            HStack {
+            HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Garden")
                         .font(.headline)
-                    Text("Scroll or drag to turn · photos change after a three-quarter turn · click to inspect")
+                    Text(stage.caption)
                         .font(.caption)
                         .foregroundStyle(PrismTheme.textSecondary)
+                        .lineLimit(2)
                 }
-                Spacer()
-                Button {
-                    yaw = -8
-                    pitch = -6
-                    zoom = 1.35
-                    openGeneration += 1
-                } label: {
-                    Label("Refocus", systemImage: "scope")
+                Spacer(minLength: 8)
+                Picker("Layout", selection: $stage) {
+                    ForEach(GardenStage.allCases) { mode in
+                        Text(mode.label).tag(mode)
+                    }
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+                .pickerStyle(.segmented)
                 .prismClickable()
+                .frame(maxWidth: 320)
+                .labelsHidden()
+                if stage == .orbit {
+                    Button {
+                        yaw = -8
+                        pitch = -6
+                        zoom = 1.35
+                        openGeneration += 1
+                    } label: {
+                        Label("Refocus", systemImage: "scope")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .prismClickable()
+                }
             }
             .padding(.horizontal, 4)
-            orbit
+            Group {
+                switch stage {
+                case .orbit:
+                    orbit
+                case .spiral:
+                    GardenSpiralView(
+                        assets: filteredAssets,
+                        hasMore: hasMore,
+                        onLoadMore: onLoadMore,
+                        onHover: onHoverAsset,
+                        onOpen: onOpen
+                    )
+                case .depth:
+                    GardenDepthView(
+                        assets: filteredAssets,
+                        hasMore: hasMore,
+                        onLoadMore: onLoadMore,
+                        onHover: onHoverAsset,
+                        onOpen: onOpen
+                    )
+                case .drift:
+                    GardenDriftView(
+                        assets: filteredAssets,
+                        hasMore: hasMore,
+                        onLoadMore: onLoadMore,
+                        onHover: onHoverAsset,
+                        onOpen: onOpen
+                    )
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .onChange(of: stage) { _, _ in
+                onHoverAsset(nil)
+            }
             styleRow
         }
         .task(id: openGeneration) {
@@ -107,12 +156,20 @@ public struct OrbitGardenView: View {
                 yRadius: frame.y,
                 spreadSlots: max(visibleAssets.count, 8)
             )
+            let frontRank = Dictionary(
+                cards.reversed().enumerated().map { ($1.id, $0) },
+                uniquingKeysWith: { first, _ in first }
+            )
             ZStack {
                 ForEach(cards) { card in
                     Button {
                         onOpen(card.asset)
                     } label: {
-                        ThumbnailImageView(path: card.asset.thumbnailPath, contentMode: .fill)
+                        ThumbnailImageView(
+                            path: card.asset.thumbnailPath,
+                            contentMode: .fill,
+                            revealDelay: Double(frontRank[card.id] ?? 0) * 0.03
+                        )
                             .frame(width: frame.card.width, height: frame.card.height)
                             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                             .overlay {
@@ -120,14 +177,16 @@ public struct OrbitGardenView: View {
                                     .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
                             }
                             .overlay(alignment: .bottom) {
-                                Text(GalleryDateLabel.added(card.asset.addedAt))
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(.white)
-                                    .lineLimit(1)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 3)
-                                    .frame(maxWidth: .infinity)
-                                    .background(.black.opacity(0.5))
+                                if GalleryDateLabel.showsAddedDate(for: card.asset.kind) {
+                                    Text(GalleryDateLabel.added(card.asset.addedAt))
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(.white)
+                                        .lineLimit(1)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 3)
+                                        .frame(maxWidth: .infinity)
+                                        .background(.black.opacity(0.5))
+                                }
                             }
                     }
                     .buttonStyle(.plain)
@@ -142,8 +201,10 @@ public struct OrbitGardenView: View {
                     .onHover { inside in
                         if inside {
                             hoveredAssetID = card.asset.id
+                            onHoverAsset(card.asset)
                         } else if hoveredAssetID == card.asset.id {
                             hoveredAssetID = nil
+                            onHoverAsset(nil)
                         }
                     }
                     .transition(
@@ -297,45 +358,13 @@ public struct OrbitGardenView: View {
 }
 
 #if os(macOS)
-private struct OrbitWheelCatcher: NSViewRepresentable {
+private struct OrbitWheelCatcher: View {
     var onWheel: (CGFloat, CGFloat, Bool) -> Void
 
-    func makeNSView(context: Context) -> WheelView {
-        let view = WheelView()
-        view.onWheel = onWheel
-        return view
-    }
-
-    func updateNSView(_ nsView: WheelView, context: Context) {
-        nsView.onWheel = onWheel
-    }
-
-    final class WheelView: NSView {
-        var onWheel: ((CGFloat, CGFloat, Bool) -> Void)?
-        private var monitor: Any?
-
-        override var isOpaque: Bool { false }
-        override func hitTest(_ point: NSPoint) -> NSView? { nil }
-
-        override func viewDidMoveToWindow() {
-            super.viewDidMoveToWindow()
-            removeMonitor()
-            guard window != nil else { return }
-            monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
-                guard let self, let window = self.window, event.window === window else { return event }
-                let point = self.convert(event.locationInWindow, from: nil)
-                guard self.bounds.contains(point) else { return event }
-                let zooming = event.modifierFlags.contains(.option)
-                self.onWheel?(event.scrollingDeltaX, event.scrollingDeltaY, zooming)
-                return nil
-            }
-        }
-
-        private func removeMonitor() {
-            if let monitor {
-                NSEvent.removeMonitor(monitor)
-                self.monitor = nil
-            }
+    var body: some View {
+        PrismWheelRegion { event in
+            onWheel(event.scrollingDeltaX, event.scrollingDeltaY, event.modifierFlags.contains(.option))
+            return .consume
         }
     }
 }

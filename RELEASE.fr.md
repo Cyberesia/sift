@@ -10,8 +10,8 @@ Le détail anglais est dans [RELEASE.md](./RELEASE.md).
 
 | | |
 | :-- | :-- |
-| Actuelle | **0.1.1** (`CFBundleShortVersionString` dans `Sources/SiftApp/Info.plist`, build `2`) |
-| Première release GitHub | 0.1.1, fichier `Sift.dmg` |
+| Actuelle | **0.1.2** (`CFBundleShortVersionString` dans `Sources/SiftApp/Info.plist`, build `3`) |
+| Première release GitHub | 0.1.1, fichier `Sift.dmg`. Le tag `v0.1.1` reste en place. |
 | 0.1.0 | Instantané des sources sur `main`. Pas de release GitHub, pas de tag sur le dépôt distant, pas de DMG. |
 
 ## Construire l’app et le DMG
@@ -21,7 +21,7 @@ Le détail anglais est dans [RELEASE.md](./RELEASE.md).
 open .build/distribution/Sift.dmg
 ```
 
-Le script compile le binaire de release, l’enveloppe dans `Sift.app`, copie `Info.plist`, et écrit `.build/distribution/Sift.dmg`. L’image disque s’appelle `Sift 0.1.1` et contient l’app plus un raccourci vers Applications. L’identifiant du bundle est `ai.cyclones.sift` par défaut.
+Le script compile le binaire de release, l’enveloppe dans `Sift.app`, copie `Info.plist`, et écrit `.build/distribution/Sift.dmg`. L’image disque s’appelle `Sift` plus la version de `Info.plist` (`Sift 0.1.2`) et contient l’app plus un raccourci vers Applications. L’identifiant du bundle est `ai.cyclones.sift` par défaut.
 
 ## Signer (optionnel, en local)
 
@@ -59,20 +59,20 @@ xcrun notarytool store-credentials sift-notary
 
 Le dépôt public est [github.com/Cyberesia/sift](https://github.com/Cyberesia/sift).
 
-La 0.1.0 n’y a jamais été publiée comme release. Il n’y a pas de DMG précédent à remplacer. La 0.1.1 est la première. La recherche de mise à jour dans l’app lit `https://api.github.com/repos/Cyberesia/sift/releases/latest` et télécharge le fichier `.dmg`.
+La 0.1.0 n’y a jamais été publiée comme release. La 0.1.1 est la première version téléchargeable. La recherche de mise à jour dans l’app lit `https://api.github.com/repos/Cyberesia/sift/releases/latest` et télécharge le fichier `.dmg`.
 
-Depuis la copie `sift`, une fois le commit 0.1.1 sur `main` :
+Depuis la copie `sift`, une fois le commit 0.1.2 sur `main` :
 
 ```bash
-git tag -a v0.1.1 -m "Sift v0.1.1"
+git tag -a v0.1.2 -m "Sift v0.1.2"
 git push origin main
-git push origin v0.1.1
-gh release create v0.1.1 .build/distribution/Sift.dmg \
+git push origin v0.1.2
+gh release create v0.1.2 .build/distribution/Sift.dmg \
   --repo Cyberesia/sift \
-  --title "Sift v0.1.1" \
+  --title "Sift v0.1.2" \
   --notes-file CHANGELOG.md
 ```
 
-Collez la section `0.1.1` de [CHANGELOG.fr.md](./CHANGELOG.fr.md) si vous préférez les notes en français. L’anglais est dans [CHANGELOG.md](./CHANGELOG.md).
+Ne déplacez pas le tag `v0.1.1`. Collez la section `0.1.2` de [CHANGELOG.fr.md](./CHANGELOG.fr.md) si vous préférez les notes en français. L’anglais est dans [CHANGELOG.md](./CHANGELOG.md).
 
 Ne joignez pas de `.env`, de clés privées Sparkle, ni quoi que ce soit de `__inspire/`. Ne commitez pas le DMG dans git.
