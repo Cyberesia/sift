@@ -13,7 +13,9 @@ MACOS="$CONTENTS/MacOS"
 RESOURCES="$CONTENTS/Resources"
 
 echo "Building $PRODUCT (release)…"
-swift build -c release --product Sift
+if [[ "${SKIP_SWIFT_BUILD:-}" != 1 ]]; then
+  swift build -c release --product Sift
+fi
 
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS" "$RESOURCES"
@@ -21,13 +23,40 @@ mkdir -p "$MACOS" "$RESOURCES"
 cp "$BUILD_DIR/Sift" "$MACOS/Sift"
 chmod +x "$MACOS/Sift"
 
+# The binary loads Sparkle from @loader_path, next to the executable.
+cp -R "$BUILD_DIR/Sparkle.framework" "$MACOS/Sparkle.framework"
+
 cp "$ROOT/Sources/SiftApp/Info.plist" "$CONTENTS/Info.plist"
 cp "$ROOT/Sources/SiftApp/PrivacyInfo.xcprivacy" "$RESOURCES/PrivacyInfo.xcprivacy" 2>/dev/null || true
+
+# Resource bundles must live in Contents/Resources so the signature seals them.
+# Bundle(path:) needs a package type and an identifier.
+for bundle in "$BUILD_DIR"/*.bundle; do
+  name="$(basename "$bundle" .bundle)"
+  dest="$RESOURCES/$name.bundle"
+  cp -R "$bundle" "$dest"
+  if [[ ! -f "$dest/Info.plist" ]]; then
+    /usr/libexec/PlistBuddy -c "Add :CFBundleDevelopmentRegion string en" "$dest/Info.plist"
+  fi
+  /usr/libexec/PlistBuddy -c "Add :CFBundlePackageType string BNDL" "$dest/Info.plist" 2>/dev/null \
+    || /usr/libexec/PlistBuddy -c "Set :CFBundlePackageType BNDL" "$dest/Info.plist"
+  /usr/libexec/PlistBuddy -c "Add :CFBundleIdentifier string ${BUNDLE_ID}.resources.${name}" "$dest/Info.plist" 2>/dev/null \
+    || /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier ${BUNDLE_ID}.resources.${name}" "$dest/Info.plist"
+done
 
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $BUNDLE_ID" "$CONTENTS/Info.plist" 2>/dev/null || true
 
 if [[ -n "${SIGN_IDENTITY:-}" ]]; then
-  codesign --force --deep --options runtime \
+  SPARKLE="$MACOS/Sparkle.framework/Versions/B"
+  # Inside out, same order Sparkle documents for a Developer ID app.
+  codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" \
+    "$SPARKLE/XPCServices/Downloader.xpc" \
+    "$SPARKLE/XPCServices/Installer.xpc" \
+    "$SPARKLE/Updater.app" \
+    "$SPARKLE/Autoupdate"
+  codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" \
+    "$MACOS/Sparkle.framework"
+  codesign --force --options runtime --timestamp \
     --entitlements "$ROOT/Packaging/Entitlements/Sift.entitlements" \
     --sign "$SIGN_IDENTITY" \
     "$APP_DIR"

@@ -74,6 +74,8 @@ struct SettingsView: View {
             recentTransfers: recentTransfers,
             onAddFolder: { Task { await session.addFolder() } },
             onRemoveFolder: { session.removeFolderSource(id: $0) },
+            onScanFolder: session.rescanFolderSource,
+            onSetIncludeSubfolders: session.setFolderIncludesSubfolders,
             onRescanSources: session.rescanAllFolderSources,
             onStartAITagging: session.startBackgroundAnalysis,
             onUndoTransfer: { record in

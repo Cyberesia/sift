@@ -8,6 +8,8 @@ public struct DiscoveryWorkspaceView: View {
     let onScanMac: () -> Void
     let onChooseLocations: () -> Void
     let onRescan: () -> Void
+    let onRescanFolder: (String) -> Void
+    let onSetIncludeSubfolders: (String, Bool) -> Void
     let onReplaceFolder: (String) -> Void
     let onRemoveFolder: (String) -> Void
     let onPlanStructure: () -> Void
@@ -25,6 +27,8 @@ public struct DiscoveryWorkspaceView: View {
         onScanMac: @escaping () -> Void,
         onChooseLocations: @escaping () -> Void,
         onRescan: @escaping () -> Void,
+        onRescanFolder: @escaping (String) -> Void = { _ in },
+        onSetIncludeSubfolders: @escaping (String, Bool) -> Void = { _, _ in },
         onReplaceFolder: @escaping (String) -> Void,
         onRemoveFolder: @escaping (String) -> Void,
         onPlanStructure: @escaping () -> Void,
@@ -40,6 +44,8 @@ public struct DiscoveryWorkspaceView: View {
         self.onScanMac = onScanMac
         self.onChooseLocations = onChooseLocations
         self.onRescan = onRescan
+        self.onRescanFolder = onRescanFolder
+        self.onSetIncludeSubfolders = onSetIncludeSubfolders
         self.onReplaceFolder = onReplaceFolder
         self.onRemoveFolder = onRemoveFolder
         self.onPlanStructure = onPlanStructure
@@ -101,33 +107,10 @@ public struct DiscoveryWorkspaceView: View {
                             Button(action: onPlanStructure) {
                                 Label("Choose a home folder", systemImage: "wand.and.stars")
                             }
-                            .buttonStyle(.borderedProminent)
+                            .buttonStyle(.bordered)
                             .help("Pick where organized files should go. Nothing moves yet.")
                             .prismClickable()
-                            Button {
-                                let names = folders.map(\.displayName).joined(separator: ", ")
-                                confirm = SiftConfirm(
-                                    title: "Look again?",
-                                    message: names.isEmpty
-                                        ? "Sift walks the saved folders and updates the catalog. Files stay where they are."
-                                        : "Sift walks \(names) and updates the catalog. Files stay where they are.",
-                                    confirmTitle: "Look again",
-                                    destructive: false,
-                                    run: onRescan
-                                )
-                            } label: {
-                                Label("Look again", systemImage: "arrow.clockwise")
-                            }
-                            .buttonStyle(.bordered)
-                            .help(lookAgainHelp)
-                            .prismClickable()
                         }
-                    }
-                    if !folders.isEmpty {
-                        Label(lookAgainHelp, systemImage: "folder")
-                            .font(.caption)
-                            .foregroundStyle(PrismTheme.textSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 .padding(16)
@@ -153,12 +136,35 @@ public struct DiscoveryWorkspaceView: View {
 
                 if !folders.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Catalog locations")
-                            .font(.headline)
+                        HStack {
+                            Text("Catalog locations")
+                                .font(.headline)
+                            Spacer()
+                            Button {
+                                let names = folders.map(\.displayName).joined(separator: ", ")
+                                confirm = SiftConfirm(
+                                    title: "Scan saved folders?",
+                                    message: "Sift walks \(names) again and updates the catalog. Each folder keeps its own subfolder setting. Files stay where they are. Use this for new files, or to finish a scan you stopped.",
+                                    confirmTitle: "Scan saved folders",
+                                    destructive: false,
+                                    run: onRescan
+                                )
+                            } label: {
+                                Label("Scan saved folders", systemImage: "arrow.clockwise")
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .help(lookAgainHelp)
+                            .prismClickable()
+                        }
+                        Text("These folders are already in the catalog. Scan them again here. Finder is only for adding a new place.")
+                            .font(.caption)
+                            .foregroundStyle(PrismTheme.textSecondary)
                         FolderSourcesPanel(
                             folders: folders,
                             onReplace: onReplaceFolder,
-                            onRemove: onRemoveFolder
+                            onRemove: onRemoveFolder,
+                            onScan: onRescanFolder,
+                            onSetIncludeSubfolders: onSetIncludeSubfolders
                         )
                     }
                 }
@@ -170,7 +176,7 @@ public struct DiscoveryWorkspaceView: View {
 
     private var lookAgainHelp: String {
         let names = folders.map(\.displayName).joined(separator: ", ")
-        return "Look again searches the saved folders: \(names)."
+        return "Scans the saved folders again: \(names)."
     }
 
     private var scanChoices: [(MediaKind, String, String)] {

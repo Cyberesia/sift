@@ -84,6 +84,9 @@ public final class SiftRootSession: ObservableObject {
     @Published public var folderEstimate: FolderTreeEstimate?
     @Published public var selectedSubfolderPaths: Set<String> = []
     @Published public var pendingIncludeSubfolders = true
+    /// Folders picked together, shown one intake at a time so each can skip subfolders.
+    private var pendingIntakeURLs: [URL] = []
+    private var intakeAddedAny = false
     @Published public var showMacScanWizard = false
     @Published public var showOrganizePlan = false
     @Published public var showCatalogStructureWizard = false
@@ -461,10 +464,9 @@ public final class SiftRootSession: ObservableObject {
             return
         }
         showMacScanWizard = false
-        for url in urls {
-            _ = try? bookmarkStore.add(url: url, includeSubfolders: true, includedSubfolderPaths: nil)
-        }
-        startDiscoverOnly()
+        pendingIntakeURLs = urls
+        intakeAddedAny = false
+        await presentNextIntake()
         #endif
     }
 
@@ -643,7 +645,7 @@ public final class SiftRootSession: ObservableObject {
         #endif
     }
 
-    private func beginFolderIntake(url: URL) async {
+    private func beginFolderIntake(url: URL, focusOrganize: Bool = true) async {
         #if os(macOS)
         pendingFolderURL = url
         pendingIncludeSubfolders = true
@@ -653,7 +655,9 @@ public final class SiftRootSession: ObservableObject {
             ?? FolderTreeEstimate(rootName: url.lastPathComponent, totalImages: 0, totalVideos: 0, totalBytes: 0, nodes: [])
         if started { url.stopAccessingSecurityScopedResource() }
         showFolderIntakeWizard = true
-        appMode = .organize
+        if focusOrganize {
+            appMode = .organize
+        }
         #endif
     }
 
@@ -787,18 +791,66 @@ public final class SiftRootSession: ObservableObject {
                 includeSubfolders: pendingIncludeSubfolders,
                 includedSubfolderPaths: paths
             )
+            intakeAddedAny = true
             #if os(macOS)
             startSourceFolderWatcher()
             #endif
         }
         pendingFolderURL = nil
-        startDiscoverOnly()
+        continueIntakeOrScan()
     }
 
     public func cancelFolderIntake() {
         pendingFolderURL = nil
         folderEstimate = nil
+        pendingIntakeURLs = []
         showFolderIntakeWizard = false
+        if intakeAddedAny {
+            intakeAddedAny = false
+            startDiscoverOnly()
+        }
+    }
+
+    public func setFolderIncludesSubfolders(id: String, include: Bool) {
+        bookmarkStore.setIncludeSubfolders(id: id, include: include)
+    }
+
+    /// Walks one saved folder again, using its subfolder setting. Files stay where they are.
+    public func rescanFolderSource(id: String) {
+        guard let bookmark = bookmarkStore.bookmark(id: id) else { return }
+        let extensions = scanDocumentExtensions.isEmpty ? DocumentFormats.extensions : scanDocumentExtensions
+        let kinds = scanKinds.isEmpty ? Set(MediaKind.allCases) : scanKinds
+        Task {
+            await indexingCoordinator.scanBookmarks(
+                [bookmark],
+                runAnalysis: false,
+                kinds: kinds,
+                documentExtensions: extensions
+            )
+        }
+    }
+
+    private func presentNextIntake() async {
+        guard let url = pendingIntakeURLs.first else {
+            if intakeAddedAny {
+                intakeAddedAny = false
+                startDiscoverOnly()
+            }
+            return
+        }
+        pendingIntakeURLs.removeFirst()
+        await beginFolderIntake(url: url, focusOrganize: false)
+    }
+
+    private func continueIntakeOrScan() {
+        if pendingIntakeURLs.isEmpty {
+            if intakeAddedAny {
+                intakeAddedAny = false
+                startDiscoverOnly()
+            }
+            return
+        }
+        Task { await presentNextIntake() }
     }
 
     public func addDestination() async {

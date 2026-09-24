@@ -132,6 +132,21 @@ public final class BookmarkStore: ObservableObject {
         folders.first { $0.id == id }
     }
 
+    /// Remembers whether the next scan of this saved folder walks inside it.
+    public func setIncludeSubfolders(id: String, include: Bool) {
+        guard let index = folders.firstIndex(where: { $0.id == id }) else { return }
+        let old = folders[index]
+        guard old.includeSubfolders != include else { return }
+        folders[index] = FolderBookmark(
+            id: old.id,
+            displayName: old.displayName,
+            bookmarkData: old.bookmarkData,
+            includeSubfolders: include,
+            includedSubfolderPaths: include ? nil : [""]
+        )
+        persist()
+    }
+
     public func remove(id: String) {
         folders.removeAll { $0.id == id }
         persist()

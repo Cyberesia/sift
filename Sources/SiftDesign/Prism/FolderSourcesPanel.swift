@@ -15,18 +15,24 @@ public struct FolderSourcesPanel: View {
     let style: FolderSourcesPanelStyle
     let onReplace: ((String) -> Void)?
     let onRemove: (String) -> Void
+    let onScan: ((String) -> Void)?
+    let onSetIncludeSubfolders: ((String, Bool) -> Void)?
     @State private var confirm: SiftConfirm?
 
     public init(
         folders: [FolderBookmark],
         style: FolderSourcesPanelStyle = .shell,
         onReplace: ((String) -> Void)? = nil,
-        onRemove: @escaping (String) -> Void
+        onRemove: @escaping (String) -> Void,
+        onScan: ((String) -> Void)? = nil,
+        onSetIncludeSubfolders: ((String, Bool) -> Void)? = nil
     ) {
         self.folders = folders
         self.style = style
         self.onReplace = onReplace
         self.onRemove = onRemove
+        self.onScan = onScan
+        self.onSetIncludeSubfolders = onSetIncludeSubfolders
     }
 
     public var body: some View {
@@ -105,8 +111,49 @@ public struct FolderSourcesPanel: View {
                 Text(folder.includeSubfolders ? "Includes subfolders" : "This folder only")
                     .font(.caption)
                     .foregroundStyle(style == .settings ? AnyShapeStyle(.secondary) : AnyShapeStyle(PrismTheme.textTertiary))
+                if onSetIncludeSubfolders != nil {
+                    Toggle(isOn: Binding(
+                        get: { folder.includeSubfolders },
+                        set: { onSetIncludeSubfolders?(folder.id, $0) }
+                    )) {
+                        Text(Self.copy("Include subfolders", "Inclure les sous-dossiers"))
+                            .font(.caption)
+                    }
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                    .help(Self.copy(
+                        "Off scans only the files in this folder. The next scan of this folder drops nested files from the catalog. Nothing is deleted from the Mac.",
+                        "Désactivé, seul ce dossier est scanné. Le prochain scan retire les fichiers des sous-dossiers du catalogue. Rien n’est effacé du Mac."
+                    ))
+                    .prismClickable()
+                }
             }
             Spacer(minLength: 8)
+            if let onScan {
+                Button(Self.copy("Scan again", "Scanner à nouveau")) {
+                    confirm = SiftConfirm(
+                        title: Self.copy("Scan \(folder.displayName) again?", "Scanner \(folder.displayName) à nouveau ?"),
+                        message: Self.copy(
+                            folder.includeSubfolders
+                                ? "Sift walks this folder and its subfolders and updates the catalog. Files stay where they are. Use this after new files appear, or to finish a scan you stopped."
+                                : "Sift walks only the files in this folder, not its subfolders, and updates the catalog. Nested files leave the catalog. Nothing is deleted from the Mac.",
+                            folder.includeSubfolders
+                                ? "Sift parcourt ce dossier et ses sous-dossiers et met le catalogue à jour. Les fichiers restent où ils sont. Utile après de nouveaux fichiers, ou pour finir un scan interrompu."
+                                : "Sift ne parcourt que les fichiers de ce dossier, pas les sous-dossiers, et met le catalogue à jour. Les fichiers imbriqués quittent le catalogue. Rien n’est effacé du Mac."
+                        ),
+                        confirmTitle: Self.copy("Scan again", "Scanner à nouveau"),
+                        destructive: false
+                    ) {
+                        onScan(folder.id)
+                    }
+                }
+                .controlSize(.small)
+                .help(Self.copy(
+                    "Scan this saved folder again for new files, or to finish a scan you stopped.",
+                    "Rescanne ce dossier enregistré pour les nouveaux fichiers, ou pour finir un scan interrompu."
+                ))
+                .prismClickable()
+            }
             if let onReplace {
                 Button("Change…") {
                     onReplace(folder.id)

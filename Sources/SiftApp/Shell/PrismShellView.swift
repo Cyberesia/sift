@@ -42,7 +42,8 @@ public struct PrismShellView: View {
                                 counts: session.pipelineCounts(),
                                 personCollections: session.personCollections,
                                 selectedPersonCollectionID: session.selectedPersonCollectionID,
-                                onSelectPersonCollection: session.selectPersonCollection
+                                onSelectPersonCollection: session.selectPersonCollection,
+                                onActivate: { session.focus(mode: .library) }
                             )
 
                             ZStack(alignment: .topLeading) {
@@ -172,8 +173,13 @@ public struct PrismShellView: View {
             MacScanWizard(
                 fullDiskAccess: FullDiskAccessProbe.isGranted(),
                 lookingFor: ScanActivityCopy.lookingFor(session.scanKinds),
+                savedFolderCount: session.bookmarkStore.folders.count,
                 onScanMac: session.scanStandardMacLocations,
                 onChooseLocations: { Task { await session.addLocations() } },
+                onScanSavedFolders: {
+                    session.showMacScanWizard = false
+                    session.startDiscoverOnly()
+                },
                 onOpenSettings: session.openFullDiskAccessSettings,
                 onClose: { session.showMacScanWizard = false }
             )
@@ -357,6 +363,8 @@ public struct PrismShellView: View {
             onScanMac: { session.showMacScanWizard = true },
             onChooseLocations: { Task { await session.addLocations() } },
             onRescan: session.startDiscoverOnly,
+            onRescanFolder: session.rescanFolderSource,
+            onSetIncludeSubfolders: session.setFolderIncludesSubfolders,
             onReplaceFolder: { id in Task { await session.replaceFolderSource(id: id) } },
             onRemoveFolder: session.removeFolderSource,
             onPlanStructure: { session.showCatalogStructureWizard = true },

@@ -7,19 +7,22 @@ public struct StrataSidebar: View {
     let personCollections: [StratumCollectionRecord]
     let selectedPersonCollectionID: String?
     var onSelectPersonCollection: ((String?) -> Void)?
+    var onActivate: (() -> Void)?
 
     public init(
         selectedPipeline: Binding<MediaPipeline>,
         counts: [MediaPipeline: Int],
         personCollections: [StratumCollectionRecord] = [],
         selectedPersonCollectionID: String? = nil,
-        onSelectPersonCollection: ((String?) -> Void)? = nil
+        onSelectPersonCollection: ((String?) -> Void)? = nil,
+        onActivate: (() -> Void)? = nil
     ) {
         _selectedPipeline = selectedPipeline
         self.counts = counts
         self.personCollections = personCollections
         self.selectedPersonCollectionID = selectedPersonCollectionID
         self.onSelectPersonCollection = onSelectPersonCollection
+        self.onActivate = onActivate
     }
 
     public var body: some View {
@@ -77,6 +80,7 @@ public struct StrataSidebar: View {
             withAnimation(PrismMotion.quick) {
                 selectedPipeline = pipeline
                 onSelect()
+                onActivate?()
             }
         } label: {
             HStack(spacing: 10) {
@@ -112,6 +116,7 @@ public struct StrataSidebar: View {
         return Button {
             withAnimation(PrismMotion.quick) {
                 onSelectPersonCollection?(person.id)
+                onActivate?()
             }
         } label: {
             HStack(spacing: 8) {

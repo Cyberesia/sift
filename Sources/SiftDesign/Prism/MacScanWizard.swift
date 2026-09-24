@@ -4,23 +4,29 @@ import SwiftUI
 public struct MacScanWizard: View {
     let fullDiskAccess: Bool
     let lookingFor: String
+    let savedFolderCount: Int
     let onScanMac: () -> Void
     let onChooseLocations: () -> Void
+    let onScanSavedFolders: () -> Void
     let onOpenSettings: () -> Void
     let onClose: () -> Void
 
     public init(
         fullDiskAccess: Bool,
         lookingFor: String = "Looking for photos, videos, audio, and documents…",
+        savedFolderCount: Int = 0,
         onScanMac: @escaping () -> Void,
         onChooseLocations: @escaping () -> Void,
+        onScanSavedFolders: @escaping () -> Void = {},
         onOpenSettings: @escaping () -> Void,
         onClose: @escaping () -> Void
     ) {
         self.fullDiskAccess = fullDiskAccess
         self.lookingFor = lookingFor
+        self.savedFolderCount = savedFolderCount
         self.onScanMac = onScanMac
         self.onChooseLocations = onChooseLocations
+        self.onScanSavedFolders = onScanSavedFolders
         self.onOpenSettings = onOpenSettings
         self.onClose = onClose
     }
@@ -62,10 +68,21 @@ public struct MacScanWizard: View {
             .font(.caption)
             .foregroundStyle(PrismTheme.textSecondary)
 
+            if savedFolderCount > 0 {
+                Text("\(savedFolderCount) saved folder\(savedFolderCount == 1 ? "" : "s") can be scanned again without opening Finder. That picks up new files and finishes a scan you stopped.")
+                    .font(.caption)
+                    .foregroundStyle(PrismTheme.textSecondary)
+            }
+
             HStack {
                 Button("Cancel", action: onClose)
                     .prismClickable()
                 Spacer()
+                if savedFolderCount > 0 {
+                    Button("Scan saved folders", action: onScanSavedFolders)
+                        .buttonStyle(.borderedProminent)
+                        .prismClickable()
+                }
                 if !fullDiskAccess {
                     Button("Enable Full Disk Access", action: onOpenSettings)
                         .prismClickable()
@@ -74,18 +91,28 @@ public struct MacScanWizard: View {
                     Button("Choose folders", action: onChooseLocations)
                         .buttonStyle(.bordered)
                         .prismClickable()
-                    Button("Scan this Mac", action: onScanMac)
+                    if savedFolderCount > 0 {
+                        Button("Scan this Mac", action: onScanMac)
+                            .buttonStyle(.bordered)
+                            .prismClickable()
+                    } else {
+                        Button("Scan this Mac", action: onScanMac)
+                            .buttonStyle(.borderedProminent)
+                            .prismClickable()
+                    }
+                } else if savedFolderCount == 0 {
+                    Button("Choose folders", action: onChooseLocations)
                         .buttonStyle(.borderedProminent)
                         .prismClickable()
                 } else {
                     Button("Choose folders", action: onChooseLocations)
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.bordered)
                         .prismClickable()
                 }
             }
         }
         .padding(24)
-        .frame(width: 580)
+        .frame(width: 640)
         .background(PrismTheme.dominantGradient)
     }
 }

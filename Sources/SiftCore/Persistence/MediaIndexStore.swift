@@ -582,6 +582,33 @@ public final class MediaIndexStore: ObservableObject {
         try context.save()
     }
 
+    /// Drops catalog rows for a source whose files sit in a subfolder. Files on disk stay.
+    @discardableResult
+    public func removeAssetsNotDirectlyInFolder(sourceLabel: String, rootPath: String) throws -> Int {
+        let label = sourceLabel
+        let root = URL(fileURLWithPath: rootPath).standardizedFileURL.path
+        let descriptor = FetchDescriptor<MediaAssetRecord>(
+            predicate: #Predicate { $0.sourceLabel == label }
+        )
+        let records = try context.fetch(descriptor)
+        var removed = 0
+        for record in records {
+            let parent = URL(fileURLWithPath: record.fileURLString)
+                .deletingLastPathComponent()
+                .standardizedFileURL
+                .path
+            guard parent != root else { continue }
+            ThumbnailCache.deleteIfCached(record.thumbnailPath)
+            context.delete(record)
+            removed += 1
+        }
+        if removed > 0 {
+            try context.save()
+            refreshCounts()
+        }
+        return removed
+    }
+
     /// Removes indexed assets (and thumbnails) tied to a folder source label, e.g. "Downloads".
     @discardableResult
     public func removeAssets(sourceLabel: String) throws -> Int {

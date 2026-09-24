@@ -15,6 +15,8 @@ public struct PrismSettingsView: View {
     let recentTransfers: [TransferRecord]
     let onAddFolder: () -> Void
     let onRemoveFolder: (String) -> Void
+    let onScanFolder: (String) -> Void
+    let onSetIncludeSubfolders: (String, Bool) -> Void
     let onRescanSources: () -> Void
     let onStartAITagging: () -> Void
     let onUndoTransfer: (TransferRecord) -> Void
@@ -38,6 +40,8 @@ public struct PrismSettingsView: View {
         recentTransfers: [TransferRecord],
         onAddFolder: @escaping () -> Void,
         onRemoveFolder: @escaping (String) -> Void,
+        onScanFolder: @escaping (String) -> Void = { _ in },
+        onSetIncludeSubfolders: @escaping (String, Bool) -> Void = { _, _ in },
         onRescanSources: @escaping () -> Void,
         onStartAITagging: @escaping () -> Void,
         onUndoTransfer: @escaping (TransferRecord) -> Void,
@@ -51,6 +55,8 @@ public struct PrismSettingsView: View {
         self.recentTransfers = recentTransfers
         self.onAddFolder = onAddFolder
         self.onRemoveFolder = onRemoveFolder
+        self.onScanFolder = onScanFolder
+        self.onSetIncludeSubfolders = onSetIncludeSubfolders
         self.onRescanSources = onRescanSources
         self.onStartAITagging = onStartAITagging
         self.onUndoTransfer = onUndoTransfer
@@ -75,7 +81,9 @@ public struct PrismSettingsView: View {
                         FolderSourcesPanel(
                             folders: folders,
                             style: .embedded,
-                            onRemove: onRemoveFolder
+                            onRemove: onRemoveFolder,
+                            onScan: onScanFolder,
+                            onSetIncludeSubfolders: onSetIncludeSubfolders
                         )
 
                         Button(action: onAddFolder) {

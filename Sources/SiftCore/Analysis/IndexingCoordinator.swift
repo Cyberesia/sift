@@ -288,9 +288,21 @@ public final class IndexingCoordinator: ObservableObject {
         }
     }
 
-    public func scanBookmarks(_ bookmarks: [FolderBookmark], runAnalysis: Bool = true, announce: Bool = true) async {
+    public func scanBookmarks(
+        _ bookmarks: [FolderBookmark],
+        runAnalysis: Bool = true,
+        kinds: Set<MediaKind> = Set(MediaKind.allCases),
+        documentExtensions: Set<String> = DocumentFormats.extensions,
+        announce: Bool = true
+    ) async {
         guard !isRunning else { return }
-        await runDiscoverPass(bookmarks: bookmarks, runAnalysis: runAnalysis, announce: announce)
+        await runDiscoverPass(
+            bookmarks: bookmarks,
+            runAnalysis: runAnalysis,
+            kinds: kinds,
+            documentExtensions: documentExtensions,
+            announce: announce
+        )
     }
 
     public func runDiscoverPass(
@@ -314,6 +326,7 @@ public final class IndexingCoordinator: ObservableObject {
             for bookmark in bookmarks {
                 try await runControl.checkpoint()
 
+                let root = try bookmarkStore.resolve(bookmark)
                 let batch = try await bookmarkStore.withSecurityScopedAccessAsync(bookmark) { rootURL in
                     phase = .scanning(folder: bookmark.displayName, filesFound: 0)
                     return try await scanner.scanFolder(
@@ -329,6 +342,12 @@ public final class IndexingCoordinator: ObservableObject {
                             self?.phase = .scanning(folder: bookmark.displayName, filesFound: count)
                         }
                     }
+                }
+                if !bookmark.includeSubfolders {
+                    _ = try store.removeAssetsNotDirectlyInFolder(
+                        sourceLabel: bookmark.displayName,
+                        rootPath: root.path
+                    )
                 }
                 if !batch.isEmpty {
                     let added = try store.upsertDiscovered(batch)
