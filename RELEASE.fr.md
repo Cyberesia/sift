@@ -10,7 +10,7 @@ Le détail anglais est dans [RELEASE.md](./RELEASE.md).
 
 | | |
 | :-- | :-- |
-| Actuelle | **0.1.2** (`CFBundleShortVersionString` dans `Sources/SiftApp/Info.plist`, build `3`) |
+| Actuelle | **0.1.3** (`CFBundleShortVersionString` dans `Sources/SiftApp/Info.plist`, build `4`) |
 | Première release GitHub | 0.1.1, fichier `Sift.dmg`. Le tag `v0.1.1` reste en place. |
 | 0.1.0 | Instantané des sources sur `main`. Pas de release GitHub, pas de tag sur le dépôt distant, pas de DMG. |
 

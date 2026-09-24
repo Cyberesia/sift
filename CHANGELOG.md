@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-09-24
+
+### Added
+
+- Saved folders can be scanned again from Discover, without Finder. Each folder has Scan again, for new files or a scan that was stopped.
+
+### Changed
+
+- Include subfolders can be turned off. The next scan of that folder stays in the folder itself.
+- Choosing a Library sidebar row opens Library, even from another page.
+
+### Fixed
+
+- The packaged app quit on launch because CLIP resources were not found.
+
 ## [0.1.2] - 2026-09-24
 
 ### Added

@@ -7,6 +7,21 @@ Le détail anglais est dans [CHANGELOG.md](./CHANGELOG.md).
 
 ## [Non publié]
 
+## [0.1.3] - 2026-09-24
+
+### Ajouté
+
+- Les dossiers déjà catalogués se rescannent depuis Découvrir, sans le Finder. Chaque dossier a Scanner à nouveau, pour les nouveaux fichiers ou un scan interrompu.
+
+### Modifié
+
+- Inclure les sous-dossiers peut être désactivé. Le scan suivant de ce dossier reste dans le dossier lui-même.
+- Choisir une ligne de la barre Bibliothèque ouvre la Bibliothèque, même depuis une autre page.
+
+### Corrigé
+
+- L’app empaquetée quittait au lancement parce que les ressources CLIP n’étaient pas trouvées.
+
 ## [0.1.2] - 2026-09-24
 
 ### Ajouté

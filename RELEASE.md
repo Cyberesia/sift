@@ -8,7 +8,7 @@ The day-to-day build is a Swift package. A shareable build is `Sift.app` inside 
 
 | | |
 | :-- | :-- |
-| Current | **0.1.2** (`CFBundleShortVersionString` in `Sources/SiftApp/Info.plist`, build `3`) |
+| Current | **0.1.3** (`CFBundleShortVersionString` in `Sources/SiftApp/Info.plist`, build `4`) |
 | First GitHub Release | 0.1.1, asset `Sift.dmg`. The `v0.1.1` tag stays where it is. |
 | 0.1.0 | Source snapshot on `main`. No GitHub Release, no tag on the remote, no DMG. |
 
