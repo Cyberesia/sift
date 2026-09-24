@@ -29,8 +29,8 @@ cp -R "$BUILD_DIR/Sparkle.framework" "$MACOS/Sparkle.framework"
 cp "$ROOT/Sources/SiftApp/Info.plist" "$CONTENTS/Info.plist"
 cp "$ROOT/Sources/SiftApp/PrivacyInfo.xcprivacy" "$RESOURCES/PrivacyInfo.xcprivacy" 2>/dev/null || true
 
-# Resource bundles must live in Contents/Resources so the signature seals them.
-# Bundle(path:) needs a package type and an identifier.
+# Inside Contents/Resources. The app root cannot hold extra bundles; codesign rejects them.
+# Bundle.module still looks beside the .app, so the app resolves these bundles itself.
 for bundle in "$BUILD_DIR"/*.bundle; do
   name="$(basename "$bundle" .bundle)"
   dest="$RESOURCES/$name.bundle"

@@ -77,8 +77,24 @@ public actor ClipEmbeddingStore {
     private var tokenizer: Tokenizer?
     private var loadError: Error?
 
+    /// `Bundle.module` looks beside the .app and traps when the bundle is in Contents/Resources.
+    private static func clipResource(name: String, extension ext: String) -> URL? {
+        let relative = "CLIP/\(name).\(ext)"
+        let bundleName = "Sift_SiftCore.bundle"
+        let roots = [
+            Bundle.main.resourceURL?.appendingPathComponent(bundleName),
+            Bundle.main.bundleURL.appendingPathComponent(bundleName),
+            Bundle.main.bundleURL.deletingLastPathComponent().appendingPathComponent(bundleName),
+        ]
+        for root in roots.compactMap({ $0 }) {
+            let url = root.appendingPathComponent(relative)
+            if FileManager.default.fileExists(atPath: url.path) { return url }
+        }
+        return Bundle.module.url(forResource: name, withExtension: ext, subdirectory: "CLIP")
+    }
+
     public static var status: ClipModelStatus {
-        guard Bundle.module.url(forResource: "tokenizer", withExtension: "json", subdirectory: "CLIP") != nil,
+        guard clipResource(name: "tokenizer", extension: "json") != nil,
               weightNames.allSatisfy({ bundledPackage($0) != nil }) else {
             return .missing
         }
@@ -172,10 +188,10 @@ public actor ClipEmbeddingStore {
             guard let textURL = Self.loadablePackage("CLIP_TextEncoder") else {
                 throw ClipEmbeddingError.missingResource("CLIP_TextEncoder.mlmodelc")
             }
-            guard let resourceRoot = Bundle.module.resourceURL else {
+            guard let tokenizerFile = Self.clipResource(name: "tokenizer", extension: "json") else {
                 throw ClipEmbeddingError.missingResource("tokenizer.json")
             }
-            let tokenizerFolder = resourceRoot.appendingPathComponent("CLIP", isDirectory: true)
+            let tokenizerFolder = tokenizerFile.deletingLastPathComponent()
 
             let imageConfiguration = MLModelConfiguration()
             imageConfiguration.computeUnits = .all
@@ -239,7 +255,7 @@ public actor ClipEmbeddingStore {
     }
 
     private static func bundledPackage(_ name: String) -> URL? {
-        Bundle.module.url(forResource: name, withExtension: "mlmodelc", subdirectory: "CLIP")
+        clipResource(name: name, extension: "mlmodelc")
     }
 
     private static func cachedPackage(_ name: String) -> URL {
