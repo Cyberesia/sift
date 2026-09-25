@@ -95,7 +95,7 @@ public enum JevDecodeError: Error {
 
 /// Decodes a System One reply. Pixels stay on device; only the typed question result comes back.
 public enum JevClient {
-    public static let disclosure = "Jev receives the text question and the allowed answers. While a document is indexed, a short outline can go with that question: the opening lines, headings, sheet names, and column headers. The file itself, photos, video, and audio stay on this Mac."
+    public static let disclosure = "Jev receives the command, the allowed answers, and short catalog evidence: filename, extension, media kind, source folder, size, dates, dimensions, duration, scored labels, and up to three short OCR lines. While a document is indexed, a short outline can include opening lines, headings, sheet names, and column headers. The file itself, photos, video, and audio stay on this Mac."
 
     public static func decode(_ data: Data) throws -> JevChoice {
         let object = try JSONSerialization.jsonObject(with: data)
@@ -150,6 +150,76 @@ public enum JevClient {
         return try decodeNouls(data)
     }
 
+    /// One System One call classifies the assistant intent and readiness together.
+    /// Deterministic code still extracts extensions, dates, folders, and counts.
+    public static func askAssistant(state: String) async throws -> AssistantResult? {
+        guard let token = JevCredential.load(prompt: false) else { return nil }
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 4
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let criteria = Dictionary(uniqueKeysWithValues: AssistantIntent.allCases.map {
+            ($0.rawValue, $0.criterion)
+        })
+        let payload: [String: Any] = [
+            "model": "jev-latest",
+            "state": state,
+            "questions": [
+                "intent": [
+                    "type": "choice",
+                    "instructions": "What is the person asking Sift to do?",
+                    "criteria": criteria,
+                ],
+                "readiness": [
+                    "type": "score",
+                    "instructions": "How complete is this file-management command?",
+                    "criteria": [
+                        "0": "Just started or too vague to preview",
+                        "1": "Partly specified and safe only as a ghost preview",
+                        "2": "Complete enough to prepare a dry run",
+                    ],
+                ],
+                "needsReview": [
+                    "type": "noul",
+                    "instructions": "The command explicitly asks to review uncertainty, duplicates, or faces before organizing.",
+                ],
+            ],
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+        let (data, _) = try await URLSession.shared.data(for: request)
+        return try decodeAssistant(data)
+    }
+
+    public static func decodeAssistant(_ data: Data) throws -> AssistantResult {
+        let object = try JSONSerialization.jsonObject(with: data)
+        guard let dictionary = object as? [String: Any] else { throw JevDecodeError.malformed }
+        let answers = (dictionary["answers"] as? [String: Any]) ?? dictionary
+        guard let intentObject = answers["intent"],
+              let choice = choice(from: intentObject),
+              let intent = AssistantIntent(rawValue: choice.value) else {
+            throw JevDecodeError.malformed
+        }
+        let intentDictionary = intentObject as? [String: Any]
+        let rawProbabilities = intentDictionary?["probabilities"] as? [String: Any]
+        var probabilities: [AssistantIntent: Double] = [:]
+        for candidate in AssistantIntent.allCases {
+            if let value = jsonNumber(rawProbabilities?[candidate.rawValue]) {
+                probabilities[candidate] = value
+            }
+        }
+        if probabilities.isEmpty {
+            probabilities[intent] = choice.confidence
+            probabilities[.none] = max(0, 1 - choice.confidence)
+        }
+        let readinessRaw = score(from: answers["readiness"]) ?? 0.5
+        let readiness = readinessRaw > 1 ? min(1, readinessRaw / 2) : max(0, readinessRaw)
+        if (score(from: answers["needsReview"]) ?? 0) >= 0.65 {
+            probabilities[.review] = max(probabilities[.review] ?? 0, 0.75)
+        }
+        return AssistantResult(probabilities: probabilities, readiness: readiness, engine: "jev")
+    }
+
     public static func decodeNouls(_ data: Data) throws -> [String: Double] {
         let object = try JSONSerialization.jsonObject(with: data)
         guard let dict = object as? [String: Any] else { throw JevDecodeError.malformed }
@@ -169,6 +239,15 @@ public enum JevClient {
         if let number = value as? Double { return number }
         if let number = value as? Int { return Double(number) }
         if let number = value as? NSNumber { return number.doubleValue }
+        return nil
+    }
+
+    private static func score(from object: Any?) -> Double? {
+        if let direct = jsonNumber(object) { return direct }
+        guard let dictionary = object as? [String: Any] else { return nil }
+        for key in ["score", "value", "noul", "confidence"] {
+            if let number = jsonNumber(dictionary[key]) { return number }
+        }
         return nil
     }
 

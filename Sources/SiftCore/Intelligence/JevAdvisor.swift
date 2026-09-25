@@ -147,12 +147,12 @@ public enum JevAdvisor {
         }
     }
 
-    public static func proposeFolder(localFolder: String, sampleNames: [String]) async -> String? {
+    public static func proposeFolder(localFolder: String, evidence: [EvidenceCard]) async -> String? {
         guard JevCredential.isConfigured, folders.contains(localFolder) else { return nil }
-        let names = sampleNames.prefix(5).joined(separator: ", ")
+        let facts = evidence.prefix(5).map(\.text).joined(separator: "\n")
         do {
             guard let choice = try await JevClient.ask(
-                state: "Local folder: \(localFolder). Example filenames: \(names). Choose one existing folder.",
+                state: "Local folder: \(localFolder). Catalog evidence:\n\(facts)\nChoose one existing folder. No file contents or pixels are included.",
                 instructions: "Which existing destination folder fits this group? Do not invent a path.",
                 choices: Dictionary(uniqueKeysWithValues: folders.map { ($0, "Put the files in \($0)") })
             ) else { return nil }

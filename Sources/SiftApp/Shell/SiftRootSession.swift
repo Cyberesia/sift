@@ -21,6 +21,7 @@ public final class SiftRootSession: ObservableObject {
     #endif
     private var semanticSearchTask: Task<Void, Never>?
     private var organizeRefineTask: Task<Void, Never>?
+    private var assistantJevTask: Task<Void, Never>?
     private var rerankNextSearch = false
     private let libraryPageSize = 160
     private var libraryFetchOffset = 0
@@ -92,6 +93,17 @@ public final class SiftRootSession: ObservableObject {
     @Published public var showCatalogStructureWizard = false
     @Published public var organizePlan: [OrganizePlanItem] = []
     private var suggestStructureAfterDiscovery = false
+    @Published public private(set) var catalogCompositions: [String: CatalogComposition] = [:]
+    @Published public var assistantText = ""
+    @Published public private(set) var assistantMemory = AssistantMemory()
+    @Published public private(set) var assistantCommand = AssistantCommand()
+    @Published public private(set) var assistantResult = AssistantResult(probabilities: [.none: 1])
+    @Published public private(set) var assistantSlice = CatalogSlice.everything
+    @Published public private(set) var assistantSliceActive = false
+    @Published public private(set) var assistantPreview: [OrganizePlanItem] = []
+    @Published public private(set) var assistantFind: AssistantFindResult?
+    private var assistantFindTask: Task<Void, Never>?
+    private var activeAssistantRule: OrganizePlanRule?
 
     @Published public var showDestinationWizard = false
     @Published public var showStartAITagging = false
@@ -175,6 +187,7 @@ public final class SiftRootSession: ObservableObject {
         }
 
         reloadLibrary()
+        catalogCompositions = (try? indexStore.compositions()) ?? [:]
         #if os(macOS)
         if watchSourceFolders {
             startSourceFolderWatcher()
@@ -201,6 +214,7 @@ public final class SiftRootSession: ObservableObject {
             refreshBrowseSubfolderOptions()
             indexStore.refreshCounts()
             refreshFilingSummary()
+            catalogCompositions = (try? indexStore.compositions()) ?? [:]
             refreshNotchLinks()
             updatePalette()
             jobCenter.sync(from: indexingCoordinator.phase)
@@ -288,6 +302,9 @@ public final class SiftRootSession: ObservableObject {
                     isScreenshotOrDocument: record.isScreenshotOrDocument,
                     faceCount: record.faceCount
                 ) { return false }
+                if assistantSliceActive, !assistantSlice.contains(CompositionFile(record: record)) {
+                    return false
+                }
                 return true
             }
             accepted.append(contentsOf: filtered.prefix(libraryPageSize - accepted.count))
@@ -536,22 +553,285 @@ public final class SiftRootSession: ObservableObject {
         runSearch()
     }
 
+    /// The first Organize step still missing, so no screen offers a button the user cannot act on.
+    public var organizeBlocker: OrganizeBlocker? {
+        OrganizeBlocker.first(hasDestination: activeDestination != nil, transferChosen: transferChoiceConfirmed)
+    }
+
+    /// Only an explicit "Review the list" presents the sheet. Navigation never does.
+    public func reviewOrganizePlan() {
+        refreshOrganizePlan()
+        showOrganizePlan = true
+    }
+
     public func refreshOrganizePlan() {
         refreshFilingSummary()
         let filing = filingSummary
-        let records = (try? indexStore.fetchAssets()) ?? []
         organizePlan = OrganizePlanner.preview(
-            candidates: records.map {
-                OrganizeCandidate(id: $0.id, path: $0.fileURL.path, pipelineName: $0.pipeline.displayName)
-            },
+            candidates: organizeCandidates(),
             inDestinationPaths: filing.inDestinationPaths,
             originPaths: filing.originPaths,
-            outsidePaths: filing.outsidePaths
+            outsidePaths: filing.outsidePaths,
+            rule: activeAssistantRule
         )
-        showOrganizePlan = true
         notchChrome.planCount = organizePlan.filter { !$0.blocked }.count
         notchChrome.blockedPlanCount = organizePlan.filter(\.blocked).count
         refineOrganizePlanWithJev()
+    }
+
+    private func organizeCandidates() -> [OrganizeCandidate] {
+        ((try? indexStore.fetchAssets()) ?? []).map {
+            OrganizeCandidate(
+                id: $0.id,
+                path: $0.fileURL.path,
+                pipelineName: $0.pipeline.displayName,
+                sourceLabel: $0.sourceLabel,
+                kind: $0.kind,
+                fileExtension: $0.fileExtension ?? $0.fileURL.pathExtension,
+                date: $0.captureDate ?? $0.modifiedAt,
+                evidenceComplete: $0.isAnalyzed && $0.evidenceVersion >= EvidenceCard.currentVersion,
+                undoneFolder: $0.undoneFolder
+            )
+        }
+    }
+
+    public func clearAssistantScope() {
+        assistantSlice = .everything
+        assistantSliceActive = false
+        updateAssistantText(assistantText)
+    }
+
+    /// Points the command field at one catalog and the extensions still selected.
+    public func setAssistantSlice(_ slice: CatalogSlice) {
+        assistantSlice = slice
+        assistantSliceActive = true
+        let composition = slice.sourceLabel.flatMap { catalogCompositions[$0] }
+        let kept = composition?.extensions.filter { !slice.excludedExtensions.contains($0.fileExtension) } ?? []
+        let names = kept.map(\.fileExtension).filter { !$0.isEmpty }
+        let source = slice.sourceLabel ?? "this catalog"
+        let prompt: String
+        if names.isEmpty {
+            prompt = "Organize the files in \(source)"
+        } else if !slice.excludedExtensions.isEmpty {
+            prompt = "Organize \(names.joined(separator: ", ")) in \(source), leave out \(slice.excludedExtensions.sorted().joined(separator: ", "))"
+        } else {
+            prompt = "Organize the files in \(source)"
+        }
+        updateAssistantText(prompt)
+        appMode = .sources
+    }
+
+    public func updateAssistantText(_ text: String) {
+        assistantText = text
+        let knownExtensions = Set(catalogCompositions.values.flatMap { $0.extensions.map(\.fileExtension) })
+        let sources = bookmarkStore.folders.map(\.displayName)
+        let destinations = FileTransferCoordinator.suggestedCatalogFolders
+        assistantCommand = AssistantParser.parse(
+            text,
+            knownExtensions: knownExtensions,
+            sources: sources,
+            folders: destinations
+        )
+        if assistantCommand.sourceLabel == nil, let source = assistantSlice.sourceLabel {
+            assistantCommand.sourceLabel = source
+        }
+        if assistantCommand.included.isEmpty, assistantCommand.excluded.isEmpty,
+           !assistantSlice.includedExtensions.isEmpty || !assistantSlice.excludedExtensions.isEmpty {
+            assistantCommand.included = assistantSlice.includedExtensions
+            assistantCommand.excluded = assistantSlice.excludedExtensions
+        }
+        let local = AssistantOfflineClassifier.classify(text, command: assistantCommand)
+        applyAssistantResult(local)
+        scheduleJevAssistant(for: text)
+    }
+
+    public func chooseAssistantIntent(_ intent: AssistantIntent) {
+        assistantMemory = AssistantDecide.force(intent, text: assistantText)
+        rebuildAssistantPreview()
+    }
+
+    public func clearAssistant() {
+        assistantJevTask?.cancel()
+        assistantText = ""
+        assistantMemory = AssistantMemory()
+        assistantCommand = AssistantCommand()
+        assistantResult = AssistantResult(probabilities: [.none: 1])
+        assistantSlice = .everything
+        assistantSliceActive = false
+        assistantPreview = []
+        assistantFindTask?.cancel()
+        assistantFind = nil
+        activeAssistantRule = nil
+    }
+
+    public func openAssistantHit(_ asset: MediaAssetSummary) {
+        commandQuery = assistantCommand.searchQuery
+        focus(mode: .library)
+        runSearch()
+        openPreview(asset)
+    }
+
+    public func submitAssistant() {
+        if assistantMemory.ui.activeIntent == .find {
+            if let find = assistantFind, !find.searching, find.hits.isEmpty {
+                Task { await addLocations() }
+            } else {
+                showAssistantFindInLibrary()
+            }
+            return
+        }
+        guard case .committed(let intent, _) = assistantMemory.ui else { return }
+        switch intent {
+        case .find:
+            showAssistantFindInLibrary()
+        case .scan:
+            if assistantCommand.scansWholeMac {
+                showMacScanWizard = true
+            } else {
+                Task { await addLocations() }
+            }
+        case .slice:
+            assistantSlice = assistantCommand.slice
+            assistantSliceActive = true
+            focus(mode: .library)
+            reloadLibrary()
+        case .organizeByType, .organizeByDate, .organizeByContent:
+            activeAssistantRule = makeAssistantRule(intent)
+            refreshOrganizePlan()
+            appMode = .organize
+        case .leaveInPlace:
+            assistantPreview = []
+        case .review:
+            focus(mode: .review)
+        case .none:
+            break
+        }
+    }
+
+    private func applyAssistantResult(_ result: AssistantResult) {
+        assistantResult = result
+        assistantMemory = AssistantDecide.decide(assistantMemory, result: result, text: assistantText)
+        rebuildAssistantPreview()
+    }
+
+    private func makeAssistantRule(_ intent: AssistantIntent) -> OrganizePlanRule {
+        var slice = assistantCommand.slice
+        if slice.isEverything, !assistantSlice.isEverything { slice = assistantSlice }
+        return OrganizePlanRule(
+            intent: intent,
+            slice: slice,
+            destinationFolder: assistantCommand.folder,
+            grouping: assistantCommand.grouping
+        )
+    }
+
+    private func rebuildAssistantPreview() {
+        if assistantMemory.ui.activeIntent == .find {
+            scheduleAssistantFind()
+        } else {
+            assistantFindTask?.cancel()
+            assistantFind = nil
+        }
+        guard let intent = assistantMemory.ui.activeIntent, intent.isPlan else {
+            assistantPreview = []
+            return
+        }
+        let filing = filingSummary
+        assistantPreview = OrganizePlanner.preview(
+            candidates: organizeCandidates(),
+            inDestinationPaths: filing.inDestinationPaths,
+            originPaths: filing.originPaths,
+            outsidePaths: filing.outsidePaths,
+            rule: makeAssistantRule(intent)
+        )
+    }
+
+    private func scheduleAssistantFind() {
+        let command = assistantCommand
+        let query = command.searchQuery
+        guard !query.isEmpty else {
+            assistantFindTask?.cancel()
+            assistantFind = nil
+            return
+        }
+        if assistantFind?.query == query, assistantFind?.searching == false { return }
+        var slice = command.slice
+        if slice.sourceLabel == nil { slice.sourceLabel = assistantSlice.sourceLabel }
+        let searched = catalogCompositions.values
+            .filter { slice.sourceLabel == nil || $0.sourceLabel == slice.sourceLabel }
+            .reduce(0) { $0 + slice.kept(in: $1).reduce(0) { $0 + $1.count } }
+        let visualReady = ClipEmbeddingStore.status == .ready
+        assistantFind = AssistantFindResult(query: query, hits: assistantFind?.hits ?? [], searchedCount: searched, visualSearchReady: visualReady)
+        assistantFindTask?.cancel()
+        assistantFindTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(220))
+            guard let self, !Task.isCancelled else { return }
+            let keeps: (MediaAssetRecord) -> Bool = { slice.contains(CompositionFile(record: $0)) }
+            var seen = Set<String>()
+            var labeled: [MediaAssetRecord] = []
+            let probes = [query] + (command.searchTerms.count > 1 ? command.searchTerms : [])
+            for probe in probes {
+                let records = (try? indexStore.searchAssets(query: probe, includeFileNames: true, includeRecognizedText: true, limit: 60)) ?? []
+                labeled += records.filter { keeps($0) && seen.insert($0.id).inserted }
+            }
+            var lookalikes: [MediaAssetRecord] = []
+            if visualReady, labeled.count < 12 {
+                do {
+                    let text = try await ClipEmbeddingStore.shared.embedText(query)
+                    let photo = try await ClipEmbeddingStore.shared.embedText("a photo of \(query)")
+                    let semantic = try await SemanticCatalogSearch.shared.topHits(query: text, limit: 40, also: [photo], preferPhotographs: true)
+                    let records = try indexStore.fetchAssets(ids: semantic.map(\.id))
+                    let byID = Dictionary(uniqueKeysWithValues: records.map { ($0.id, $0) })
+                    lookalikes = semantic.compactMap { byID[$0.id] }.filter { keeps($0) && seen.insert($0.id).inserted }
+                } catch {
+                    // Label and text matches stay usable when the visual model fails.
+                }
+            }
+            guard !Task.isCancelled, assistantCommand.searchQuery == query else { return }
+            let people = (try? indexStore.buildPersonNameLookup()) ?? [:]
+            let hits = (labeled + lookalikes).prefix(12).map { MediaAssetSummary(record: $0, personDisplayName: people[$0.id]) }
+            assistantFind = AssistantFindResult(
+                query: query,
+                hits: Array(hits),
+                labeledCount: labeled.count,
+                searchedCount: searched,
+                searching: false,
+                visualSearchReady: visualReady
+            )
+        }
+    }
+
+    /// Opens the Library on the same words, so the full result list is one click from the field.
+    private func showAssistantFindInLibrary() {
+        commandQuery = assistantCommand.searchQuery
+        focus(mode: .library)
+        runSearch()
+    }
+
+    private func scheduleJevAssistant(for text: String) {
+        assistantJevTask?.cancel()
+        guard JevCredential.isConfigured, text.trimmingCharacters(in: .whitespacesAndNewlines).count >= 4 else { return }
+        let source = assistantCommand.sourceLabel.flatMap { catalogCompositions[$0] }
+        let summary = source.map {
+            "\($0.sourceLabel): \($0.extensions.prefix(12).map { "\($0.fileExtension) \($0.count)" }.joined(separator: ", "))"
+        } ?? "No source composition selected."
+        let command = assistantCommand
+        assistantJevTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(350))
+            guard !Task.isCancelled else { return }
+            do {
+                let state = """
+                User command: \(text)
+                Parsed by deterministic code: include \(command.included.sorted()), exclude \(command.excluded.sorted()), source \(command.sourceLabel ?? "none"), destination \(command.folder ?? "none"), grouping \(command.grouping?.rawValue ?? "none").
+                Catalog summary: \(summary)
+                Nothing has moved. Choose an intent only; do not extract values.
+                """
+                guard let result = try await JevClient.askAssistant(state: state), !Task.isCancelled else { return }
+                self?.applyAssistantResult(result)
+            } catch {
+                // The local result remains visible and actionable.
+            }
+        }
     }
 
     /// Asks Jev once per small local group. The sheet already shows the local folders; a failure leaves them as they are.
@@ -559,6 +839,7 @@ public final class SiftRootSession: ObservableObject {
         organizeRefineTask?.cancel()
         guard JevCredential.isConfigured else { return }
         let snapshot = organizePlan
+        let records = Dictionary(uniqueKeysWithValues: ((try? indexStore.fetchAssets()) ?? []).map { ($0.id, $0) })
         organizeRefineTask = Task { [weak self] in
             let groups = Dictionary(grouping: snapshot.filter { !$0.blocked && $0.proposedFolder.isEmpty == false }) {
                 $0.proposedFolder
@@ -566,8 +847,8 @@ public final class SiftRootSession: ObservableObject {
             var replacements: [String: String] = [:]
             for (folder, items) in groups where items.count <= JevAdvisor.maxGroupSize {
                 if Task.isCancelled { return }
-                let names = items.prefix(5).map(\.fileName)
-                guard let proposed = await JevAdvisor.proposeFolder(localFolder: folder, sampleNames: names) else { continue }
+                let evidence = items.prefix(5).compactMap { item in records[item.id].map(EvidenceCard.init(record:)) }
+                guard let proposed = await JevAdvisor.proposeFolder(localFolder: folder, evidence: evidence) else { continue }
                 for item in items {
                     replacements[item.id] = proposed
                 }
@@ -580,7 +861,7 @@ public final class SiftRootSession: ObservableObject {
                     fileName: item.fileName,
                     sourcePath: item.sourcePath,
                     proposedFolder: folder,
-                    reason: "Jev suggested \(folder) from the filename. Nothing is moved until you approve.",
+                    reason: "Jev suggested \(folder) from catalog evidence. Nothing is moved until you approve.",
                     blocked: false,
                     blockReason: nil
                 )
@@ -1163,7 +1444,35 @@ public final class SiftRootSession: ObservableObject {
     public func undoTransfer(_ record: TransferRecord) async {
         do {
             try transferJournal.undo(record: record)
+            let destinationParent = URL(fileURLWithPath: record.destinationPath).deletingLastPathComponent()
+            let folder: String
+            if let root = try? resolvedDestinationRoot() {
+                let rootPath = root.standardizedFileURL.path + "/"
+                let parentPath = destinationParent.standardizedFileURL.path
+                folder = parentPath.hasPrefix(rootPath) ? String(parentPath.dropFirst(rootPath.count)) : destinationParent.lastPathComponent
+            } else {
+                folder = destinationParent.lastPathComponent
+            }
+            try indexStore.recordUndoneTransfer(assetID: record.assetID, folder: folder)
             reloadLibrary()
+        } catch {
+            indexingCoordinator.reportFailure(error.localizedDescription)
+        }
+    }
+
+    public func rejectLabel(assetID: String, label: String) {
+        do {
+            try indexStore.rejectLabel(assetID: assetID, label: label)
+            let names = try indexStore.buildPersonNameLookup()
+            if let record = try indexStore.fetchAsset(id: assetID) {
+                let updated = MediaAssetSummary(record: record, personDisplayName: names[assetID])
+                if let index = previewAssets.firstIndex(where: { $0.id == assetID }) {
+                    previewAssets[index] = updated
+                }
+                selectedAsset = updated
+            }
+            reloadLibrary()
+            rebuildAssistantPreview()
         } catch {
             indexingCoordinator.reportFailure(error.localizedDescription)
         }
@@ -1674,7 +1983,10 @@ public final class SiftRootSession: ObservableObject {
             onOpenDuplicates: { [weak self] in self?.openDuplicates() },
             onFocusSearch: { [weak self] in self?.focusSearch() },
             onBrowseCatalog: { [weak self] in self?.browseEntireCatalog() },
-            onPreviewPlan: { [weak self] in self?.refreshOrganizePlan() },
+            onPreviewPlan: { [weak self] in
+                self?.refreshOrganizePlan()
+                self?.focus(mode: .organize)
+            },
             onStop: { [weak self] in self?.stopIndexing() },
             onSubmitSearch: { [weak self] query in self?.submitNotchSearch(query) },
             onQueryEdited: { [weak self] query in self?.noteNotchQuery(query) },

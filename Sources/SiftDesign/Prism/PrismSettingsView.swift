@@ -126,7 +126,7 @@ public struct PrismSettingsView: View {
                                 VStack(alignment: .leading, spacing: 10) {
                                     Text("How Jev is used")
                                         .font(.headline)
-                                    Text("With a key saved, indexing a document asks Jev once which labels fit. Those labels come from the opening lines, the headings, the sheet names, and the column headers. Return in search can still ask which screen to open, or which of a short list fits best. The file itself stays on this Mac. No key, or a failed answer, keeps the labels taken from the file.")
+                                    Text("With a key saved, Jev can classify an assistant command from the phrase, allowed actions, and a short catalog summary. Organization proposals can include filenames, extensions, kinds, source folders, sizes, dates, dimensions, durations, scored labels, and up to three short OCR lines. Document labeling can send opening lines, headings, sheet names, and column headers. Files, photos, video, and audio stay on this Mac. No key, or a failed answer, keeps the on-device result.")
                                     Text("Create or copy an API key from your TypeSafe account, paste it below, then choose Save to Keychain.")
                                     Link("Open TypeSafe documentation", destination: URL(string: "https://docs.typesafe.ai")!)
                                 }

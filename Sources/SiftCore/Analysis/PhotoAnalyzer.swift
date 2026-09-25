@@ -24,11 +24,12 @@ public actor PhotoAnalyzer {
         )
 
         let lineCount = texts.count
-        let isClutter = PipelineClassifier.isArtifact(
+        let labels = classes.map(\.label)
+        let reason = PipelineClassifier.artifactReason(
             analysis: PhotoAnalysisResult(
                 isScreenshotOrDocument: lineCount > 5,
                 textLineCount: lineCount,
-                topCategories: classes,
+                topCategories: labels,
                 detectedAnimals: animalLabels,
                 faceCount: faceCount
             ),
@@ -36,13 +37,18 @@ public actor PhotoAnalyzer {
         )
 
         return PhotoAnalysisResult(
-            isScreenshotOrDocument: isClutter,
+            isScreenshotOrDocument: reason != nil,
             textLineCount: lineCount,
-            topCategories: classes,
+            topCategories: labels,
             detectedAnimals: animalLabels,
             faceCount: faceCount,
             featurePrintData: printData,
-            recognizedText: texts
+            recognizedText: texts,
+            labelScores: classes,
+            pixelWidth: metadata.pixelWidth,
+            pixelHeight: metadata.pixelHeight,
+            captureDate: metadata.captureDate,
+            screenshotReason: reason
         )
     }
 
@@ -85,7 +91,7 @@ public actor PhotoAnalyzer {
         }
     }
 
-    private func classifyScene(_ cgImage: CGImage) async throws -> [String] {
+    private func classifyScene(_ cgImage: CGImage) async throws -> [LabelScore] {
         if #available(macOS 15.0, iOS 18.0, *) {
             return try await classifyModern(cgImage)
         }
@@ -93,16 +99,16 @@ public actor PhotoAnalyzer {
     }
 
     @available(macOS 15.0, iOS 18.0, *)
-    private func classifyModern(_ cgImage: CGImage) async throws -> [String] {
+    private func classifyModern(_ cgImage: CGImage) async throws -> [LabelScore] {
         let request = ClassifyImageRequest()
         let observations = try await request.perform(on: cgImage)
         return observations
             .sorted { $0.confidence > $1.confidence }
             .prefix(5)
-            .map(\.identifier)
+            .map { LabelScore(label: $0.identifier, score: Double($0.confidence), source: .vision) }
     }
 
-    private func classifyLegacy(_ cgImage: CGImage) async throws -> [String] {
+    private func classifyLegacy(_ cgImage: CGImage) async throws -> [LabelScore] {
         try await withCheckedThrowingContinuation { continuation in
             let request = VNClassifyImageRequest { request, error in
                 if let error {
@@ -113,7 +119,7 @@ public actor PhotoAnalyzer {
                 let labels = observations
                     .sorted { $0.confidence > $1.confidence }
                     .prefix(5)
-                    .map(\.identifier)
+                    .map { LabelScore(label: $0.identifier, score: Double($0.confidence), source: .vision) }
                 continuation.resume(returning: labels)
             }
             let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])

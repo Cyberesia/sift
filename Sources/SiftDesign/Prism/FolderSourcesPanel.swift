@@ -17,7 +17,11 @@ public struct FolderSourcesPanel: View {
     let onRemove: (String) -> Void
     let onScan: ((String) -> Void)?
     let onSetIncludeSubfolders: ((String, Bool) -> Void)?
+    let compositions: [String: CatalogComposition]
+    let onDecide: ((CatalogSlice) -> Void)?
     @State private var confirm: SiftConfirm?
+    @State private var expanded: Set<String> = []
+    @State private var excluded: [String: Set<String>] = [:]
 
     public init(
         folders: [FolderBookmark],
@@ -25,7 +29,9 @@ public struct FolderSourcesPanel: View {
         onReplace: ((String) -> Void)? = nil,
         onRemove: @escaping (String) -> Void,
         onScan: ((String) -> Void)? = nil,
-        onSetIncludeSubfolders: ((String, Bool) -> Void)? = nil
+        onSetIncludeSubfolders: ((String, Bool) -> Void)? = nil,
+        compositions: [String: CatalogComposition] = [:],
+        onDecide: ((CatalogSlice) -> Void)? = nil
     ) {
         self.folders = folders
         self.style = style
@@ -33,6 +39,8 @@ public struct FolderSourcesPanel: View {
         self.onRemove = onRemove
         self.onScan = onScan
         self.onSetIncludeSubfolders = onSetIncludeSubfolders
+        self.compositions = compositions
+        self.onDecide = onDecide
     }
 
     public var body: some View {
@@ -77,7 +85,12 @@ public struct FolderSourcesPanel: View {
                     )
             } else {
                 ForEach(folders) { folder in
-                    folderRow(folder)
+                    VStack(alignment: .leading, spacing: 0) {
+                        folderRow(folder)
+                        if style == .shell, let composition = compositions[folder.displayName], composition.total > 0 {
+                            compositionSection(folder: folder, composition: composition)
+                        }
+                    }
                 }
             }
 
@@ -129,6 +142,24 @@ public struct FolderSourcesPanel: View {
                 }
             }
             Spacer(minLength: 8)
+            if style == .shell, let onDecide, let composition = compositions[folder.displayName], composition.total > 0 {
+                Button {
+                    onDecide(CatalogSlice(
+                        sourceLabel: folder.displayName,
+                        excludedExtensions: excluded[folder.id] ?? []
+                    ))
+                } label: {
+                    Label(Self.copy("Organize this catalog", "Organiser ce catalogue"), systemImage: "bubble.left.and.text.bubble.right")
+                        .font(.caption.weight(.semibold))
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .help(Self.copy(
+                    "Opens the assistant for the \(composition.total) files already cataloged here. Nothing moves.",
+                    "Ouvre l’assistant pour les \(composition.total) fichiers déjà catalogués ici. Rien ne bouge."
+                ))
+                .prismClickable()
+            }
             if let onScan {
                 Button(Self.copy("Scan again", "Scanner à nouveau")) {
                     confirm = SiftConfirm(
@@ -185,6 +216,104 @@ public struct FolderSourcesPanel: View {
                 RoundedRectangle(cornerRadius: 10).fill(.white.opacity(0.06))
             }
         }
+    }
+
+    @ViewBuilder
+    private func compositionSection(folder: FolderBookmark, composition: CatalogComposition) -> some View {
+        let open = expanded.contains(folder.id)
+        let out = excluded[folder.id] ?? []
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                if open { expanded.remove(folder.id) } else { expanded.insert(folder.id) }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: open ? "chevron.down" : "chevron.right")
+                        .font(.caption2.weight(.bold))
+                    Text(Self.copy(
+                        "In the catalog: \(composition.total) files · \(composition.extensions.count) types",
+                        "Au catalogue : \(composition.total) fichiers · \(composition.extensions.count) types"
+                    ))
+                    .font(.caption.weight(.medium))
+                    if composition.unanalyzed > 0 {
+                        Text(Self.copy("\(composition.unanalyzed) not analyzed yet", "\(composition.unanalyzed) pas encore analysés"))
+                            .font(.caption2)
+                            .foregroundStyle(PrismTheme.textTertiary)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .foregroundStyle(PrismTheme.textSecondary)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .prismClickable()
+
+            if open {
+                FlowLayout(spacing: 6) {
+                    ForEach(composition.extensions) { item in
+                        let on = !out.contains(item.fileExtension)
+                        Button {
+                            var next = out
+                            if on { next.insert(item.fileExtension) } else { next.remove(item.fileExtension) }
+                            excluded[folder.id] = next
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text(item.fileExtension.isEmpty ? Self.copy("no ext.", "sans ext.") : item.fileExtension)
+                                    .font(.caption.monospaced().weight(.semibold))
+                                Text("\(item.count)")
+                                    .font(.caption2.monospacedDigit())
+                                    .opacity(0.75)
+                            }
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 4)
+                            .background(Capsule().fill(on ? PrismTheme.accentSoft : Color.white.opacity(0.05)))
+                            .overlay(Capsule().strokeBorder(on ? PrismTheme.accent.opacity(0.6) : PrismTheme.borderSubtle, lineWidth: 1))
+                            .foregroundStyle(on ? PrismTheme.textPrimary : PrismTheme.textTertiary)
+                            .strikethrough(!on)
+                        }
+                        .buttonStyle(.plain)
+                        .help(Self.copy(
+                            on ? "Leave .\(item.fileExtension) out of the decision" : "Put .\(item.fileExtension) back in",
+                            on ? "Écarter .\(item.fileExtension) de la décision" : "Remettre .\(item.fileExtension)"
+                        ))
+                        .prismClickable()
+                    }
+                }
+                HStack {
+                    Text(periodCaption(composition))
+                        .font(.caption2)
+                        .foregroundStyle(PrismTheme.textTertiary)
+                    Spacer()
+                    if let onDecide {
+                        let kept = composition.extensions.filter { !out.contains($0.fileExtension) }
+                        Button {
+                            onDecide(CatalogSlice(sourceLabel: folder.displayName, excludedExtensions: out))
+                        } label: {
+                            Label(
+                                Self.copy("Open assistant for this selection", "Ouvrir l’assistant pour cette sélection"),
+                                systemImage: "bubble.left.and.text.bubble.right"
+                            )
+                            .font(.caption.weight(.semibold))
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .disabled(kept.isEmpty)
+                        .help(Self.copy("Opens the assistant with these files. Nothing moves.", "Ouvre l’assistant avec ces fichiers. Rien ne bouge."))
+                        .prismClickable()
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+
+    private func periodCaption(_ composition: CatalogComposition) -> String {
+        let size = ByteCountFormatter.string(fromByteCount: composition.totalBytes, countStyle: .file)
+        guard let earliest = composition.earliest, let latest = composition.latest else { return size }
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return "\(size) · \(formatter.string(from: earliest)) – \(formatter.string(from: latest))"
     }
 
     private static func copy(_ en: String, _ fr: String) -> String {

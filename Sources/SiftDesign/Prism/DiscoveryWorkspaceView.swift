@@ -18,6 +18,9 @@ public struct DiscoveryWorkspaceView: View {
     let documentExtensions: Set<String>
     let onToggleDocumentExtension: (String, Bool) -> Void
     let filingNote: String
+    let compositions: [String: CatalogComposition]
+    let onDecide: ((CatalogSlice) -> Void)?
+    let assistant: AnyView?
     @State private var confirm: SiftConfirm?
 
     public init(
@@ -36,8 +39,14 @@ public struct DiscoveryWorkspaceView: View {
         onToggleScanKind: @escaping (MediaKind, Bool) -> Void = { _, _ in },
         documentExtensions: Set<String> = DocumentFormats.extensions,
         onToggleDocumentExtension: @escaping (String, Bool) -> Void = { _, _ in },
-        filingNote: String = ""
+        filingNote: String = "",
+        compositions: [String: CatalogComposition] = [:],
+        onDecide: ((CatalogSlice) -> Void)? = nil,
+        assistant: AnyView? = nil
     ) {
+        self.compositions = compositions
+        self.onDecide = onDecide
+        self.assistant = assistant
         self.folders = folders
         self.assetCount = assetCount
         self.analyzedCount = analyzedCount
@@ -57,6 +66,7 @@ public struct DiscoveryWorkspaceView: View {
     }
 
     public var body: some View {
+        ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 HStack(alignment: .top, spacing: 18) {
@@ -78,6 +88,11 @@ public struct DiscoveryWorkspaceView: View {
                     }
                 }
 
+                if let assistant {
+                    assistant
+                        .id("sift-command")
+                }
+
                 scanKindRow
 
                 HStack(spacing: 12) {
@@ -85,7 +100,7 @@ public struct DiscoveryWorkspaceView: View {
                         title: "Scan this Mac",
                         detail: "Home folders and connected disks. Files stay put.",
                         icon: "internaldrive",
-                        prominent: true,
+                        prominent: assistant == nil,
                         action: onScanMac
                     )
                     discoveryAction(
@@ -164,12 +179,20 @@ public struct DiscoveryWorkspaceView: View {
                             onReplace: onReplaceFolder,
                             onRemove: onRemoveFolder,
                             onScan: onRescanFolder,
-                            onSetIncludeSubfolders: onSetIncludeSubfolders
+                            onSetIncludeSubfolders: onSetIncludeSubfolders,
+                            compositions: compositions,
+                            onDecide: onDecide.map { decide in
+                                { slice in
+                                    decide(slice)
+                                    withAnimation(.snappy) { proxy.scrollTo("sift-command", anchor: .top) }
+                                }
+                            }
                         )
                     }
                 }
             }
             .padding(24)
+        }
         }
         .siftConfirming($confirm)
     }

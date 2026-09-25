@@ -54,8 +54,15 @@ public actor FileTransferCoordinator {
         return cleaned
     }
 
+    /// Nested plan folders such as `Photos/2024/2024-07`. Each part is sanitized on its own.
+    public static func sanitizedFolderPath(_ path: String) throws -> String {
+        let parts = path.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
+        guard !parts.isEmpty else { throw FileTransferError.destinationUnavailable }
+        return try parts.map(sanitizedFolderName).joined(separator: "/")
+    }
+
     private func directory(in destinationRoot: URL, folderName: String) throws -> URL {
-        let folder = try Self.sanitizedFolderName(folderName)
+        let folder = try Self.sanitizedFolderPath(folderName)
         let root = destinationRoot.standardizedFileURL
         let destDir = root.appendingPathComponent(folder, isDirectory: true).standardizedFileURL
         let rootPath = root.path

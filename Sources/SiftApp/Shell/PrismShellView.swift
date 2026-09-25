@@ -128,6 +128,10 @@ public struct PrismShellView: View {
                         onPersonLabelCommit: { name in
                             guard let asset = session.previewAsset else { return }
                             session.setPersonLabel(assetID: asset.id, name: name)
+                        },
+                        onRejectLabel: { label in
+                            guard let asset = session.previewAsset else { return }
+                            session.rejectLabel(assetID: asset.id, label: label)
                         }
                     )
                     .zIndex(200)
@@ -188,7 +192,7 @@ public struct PrismShellView: View {
             OrganizePlanSheet(
                 items: session.organizePlan,
                 confirmLabel: organizeConfirmLabel,
-                canConfirm: session.transferChoiceConfirmed,
+                blocker: session.organizeBlocker,
                 onApproveSafe: { Task { await session.approveSafeOrganization() } },
                 onClose: { session.showOrganizePlan = false }
             )
@@ -372,14 +376,17 @@ public struct PrismShellView: View {
             onToggleScanKind: session.setScanKind,
             documentExtensions: session.scanDocumentExtensions,
             onToggleDocumentExtension: session.setScanDocumentExtension,
-            filingNote: session.filingSummary.line(folderName: session.activeDestinationName)
+            filingNote: session.filingSummary.line(folderName: session.activeDestinationName),
+            compositions: session.catalogCompositions,
+            onDecide: session.setAssistantSlice,
+            assistant: AnyView(assistantView)
         )
     }
 
     private var organizeConfirmLabel: String {
         let ready = session.organizePlan.filter { !$0.blocked }.count
         let name = session.activeDestinationName.isEmpty ? "the folder" : session.activeDestinationName
-        guard session.transferChoiceConfirmed else { return "Choose move or copy first" }
+        if let blocker = session.organizeBlocker { return blocker.instruction }
         guard ready > 0 else { return "Nothing new to file" }
         switch session.fileTransferMode {
         case .move: return "Move \(ready) files into \(name)"
@@ -410,7 +417,7 @@ public struct PrismShellView: View {
             onMoveToGather: { Task { await session.moveSelectedAssets(to: .gather) } },
             onStartDiscover: session.startDiscoverOnly,
             planItems: session.organizePlan,
-            onPreviewPlan: session.refreshOrganizePlan,
+            onPreviewPlan: session.reviewOrganizePlan,
             onApproveSafe: { Task { await session.approveSafeOrganization() } },
             destinationPath: session.activeDestinationPath,
             filingNote: session.filingSummary.line(folderName: session.activeDestinationName),
@@ -429,14 +436,28 @@ public struct PrismShellView: View {
     private var libraryMode: some View {
         let hasLibrary = indexStore.assetCount > 0
         if !hasLibrary && !session.isIndexing {
-            VStack(spacing: 20) {
+            if session.bookmarkStore.folders.isEmpty {
+                VStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("What would you like Sift to do?")
+                            .font(.title2.weight(.bold))
+                        Text("Describe where to look. The field becomes the action before anything happens.")
+                            .font(.subheadline)
+                            .foregroundStyle(PrismTheme.textSecondary)
+                    }
+                    assistantView
+                        .frame(maxWidth: 760)
+                }
+                .padding(40)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
                 OnboardingEmptyState(
                     onScanMac: { session.showMacScanWizard = true },
                     onChooseLocations: { Task { await session.addLocations() } },
                     onEnablePhotos: { Task { await session.enablePhotosLibrary() } }
                 )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             VStack(spacing: 12) {
                 LibraryToolbar(
@@ -479,6 +500,30 @@ public struct PrismShellView: View {
             }
             .padding(12)
         }
+    }
+
+    private var assistantView: some View {
+        AssistantWorkspaceView(
+            text: Binding(
+                get: { session.assistantText },
+                set: { session.assistantText = $0 }
+            ),
+            state: session.assistantMemory.ui,
+            result: session.assistantResult,
+            command: session.assistantCommand,
+            composition: session.assistantCommand.sourceLabel.flatMap { session.catalogCompositions[$0] }
+                ?? session.assistantSlice.sourceLabel.flatMap { session.catalogCompositions[$0] },
+            preview: session.assistantPreview,
+            onTextChange: session.updateAssistantText,
+            onChooseIntent: session.chooseAssistantIntent,
+            onSubmit: session.submitAssistant,
+            onClear: session.clearAssistant,
+            scopeLabel: session.assistantSlice.sourceLabel,
+            onClearScope: session.clearAssistantScope,
+            find: session.assistantFind,
+            onOpenHit: session.openAssistantHit,
+            onScanMore: { Task { await session.addLocations() } }
+        )
     }
 
     /// The detail card floats over the gallery instead of taking a column from it.

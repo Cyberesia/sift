@@ -7,6 +7,22 @@ Le détail anglais est dans [CHANGELOG.md](./CHANGELOG.md).
 
 ## [Non publié]
 
+## [0.1.4] - 2026-09-25
+
+### Ajouté
+
+- **Champ de commande** — en haut de Découvrir. On écrit ce qu’on veut : trouver des fichiers déjà catalogués, ajouter un dossier ou ce Mac, ou préparer un classement. Chaque dossier ouvre le même champ, limité à ce dossier, avec une pastille « Seulement … ». Rien n’est déplacé tant que la confirmation finale n’est pas donnée.
+- **Trouver dans le catalogue** — « photos de chiens », « find pictures with dogs ». Sift cherche dans ce qui est déjà là et répond toujours : les fichiers qui correspondent, les plus proches si aucun n’est étiqueté ainsi, ou pourquoi il n’y a rien. Le bouton suivant ouvre la Bibliothèque, ou propose de scanner d’autres dossiers. « dogs » trouve aussi les labels « dog ».
+- **Contenu d’un dossier** — Découvrir montre, pour chaque dossier, les extensions et leur nombre, pour n’en traiter qu’une partie.
+
+### Modifié
+
+- **Organiser** — Continuer ouvre la page Organiser avec le plan déjà chargé. « Ce qui va changer » ne s’ouvre que par Relire la liste. Si le dossier de destination ou le choix Move ou Copy manque encore, le bouton ramène à cette étape au lieu de rester grisé. Les trois étapes sont les mêmes partout : destination, Move ou Copy, relire et classer. Écrire « move » ou « copy » ne choisit pas à votre place.
+
+### Corrigé
+
+- La carte de classement suit la phrase. « Organiser par date » remplace « Organiser par type » dès que c’est clair.
+
 ## [0.1.3] - 2026-09-24
 
 ### Ajouté
@@ -69,7 +85,9 @@ Sift catalogue les photos, vidéos, audios et documents là où ils sont déjà.
 - **Mises à jour discrètes** — un changement dans un dossier enregistré ne vérifie que ces fichiers. Un parcours complet, par exemple de Téléchargements, n’a lieu que si vous choisissez Look again.
 - **Jev (optionnel)** — avec une clé enregistrée, Entrée peut ouvrir un écran ou choisir dans une courte liste. Sans clé, ou si la réponse est peu sûre, le résultat local reste. Les pixels et le texte des documents restent sur ce Mac.
 
-[Non publié]: https://github.com/Cyberesia/sift/compare/v0.1.2...HEAD
+[Non publié]: https://github.com/Cyberesia/sift/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/Cyberesia/sift/releases/tag/v0.1.4
+[0.1.3]: https://github.com/Cyberesia/sift/releases/tag/v0.1.3
 [0.1.2]: https://github.com/Cyberesia/sift/releases/tag/v0.1.2
 [0.1.1]: https://github.com/Cyberesia/sift/releases/tag/v0.1.1
 [0.1.0]: https://github.com/Cyberesia/sift/releases/tag/v0.1.0

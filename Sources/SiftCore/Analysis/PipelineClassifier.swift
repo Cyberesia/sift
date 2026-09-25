@@ -21,15 +21,22 @@ public enum PipelineClassifier: Sendable {
         analysis: PhotoAnalysisResult,
         metadata: AssetMetadata
     ) -> Bool {
-        if metadata.isScreenshotCandidate { return true }
-        if analysis.textLineCount > 5 { return true }
-        if analysis.isScreenshotOrDocument { return true }
+        artifactReason(analysis: analysis, metadata: metadata) != nil
+    }
+
+    /// Why a picture counts as a screenshot or document: `screen-size`, `text`, or `ratio+text`. Nil otherwise.
+    public static func artifactReason(
+        analysis: PhotoAnalysisResult,
+        metadata: AssetMetadata
+    ) -> String? {
+        if metadata.isScreenshotCandidate { return "screen-size" }
+        if analysis.textLineCount > 5 || analysis.isScreenshotOrDocument { return "text" }
         let ratio = Double(metadata.pixelWidth) / Double(max(metadata.pixelHeight, 1))
         let commonScreenshotRatios = [9.0 / 16.0, 9.0 / 19.5, 3.0 / 4.0]
         if commonScreenshotRatios.contains(where: { abs($0 - ratio) < 0.05 }) && analysis.textLineCount > 2 {
-            return true
+            return "ratio+text"
         }
-        return false
+        return nil
     }
 
     private static func isPlaceCategory(_ label: String) -> Bool {

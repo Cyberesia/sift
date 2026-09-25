@@ -71,6 +71,10 @@ public struct ReorganizeWorkspaceView: View {
         self.transferChoiceConfirmed = transferChoiceConfirmed
     }
 
+    private var blocker: OrganizeBlocker? {
+        OrganizeBlocker.first(hasDestination: activeDestinationID != nil, transferChosen: transferChoiceConfirmed)
+    }
+
     private var canTransfer: Bool {
         activeDestinationID != nil && (hasSelectedAsset || batchSelectionCount > 0)
     }
@@ -95,7 +99,7 @@ public struct ReorganizeWorkspaceView: View {
 
     private var approveTitle: String {
         let name = activeDestinationName.isEmpty ? "the folder" : activeDestinationName
-        guard transferChoiceConfirmed else { return "Choose move or copy first" }
+        if let blocker { return blocker.instruction }
         guard readyCount > 0 else { return "Nothing new to file" }
         switch transferMode {
         case .move:
@@ -163,6 +167,9 @@ public struct ReorganizeWorkspaceView: View {
                      : "\(readyCount) waiting · \(heldCount) left as they are.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if readyCount > 0 {
+                    inlinePlan
+                }
                 if !ruleSuggestions.isEmpty {
                     Text("\(ruleSuggestions.count) inbox items match a rule you already saved.")
                         .font(.caption)
@@ -182,7 +189,7 @@ public struct ReorganizeWorkspaceView: View {
                         }
                     }
                         .buttonStyle(.borderedProminent)
-                        .disabled(!transferChoiceConfirmed || readyCount == 0 || activeDestinationName.isEmpty)
+                        .disabled(blocker != nil || readyCount == 0)
                         .prismClickable()
                 }
 
@@ -239,7 +246,41 @@ public struct ReorganizeWorkspaceView: View {
                 .foregroundStyle(.white)
             Text(title)
                 .font(.headline)
+            if blocker?.step == Int(number) {
+                Text("Next")
+                    .font(.caption2.weight(.bold))
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(Color.orange.opacity(0.25)))
+                    .foregroundStyle(.orange)
+            }
         }
+    }
+
+    private var inlinePlan: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(planItems.filter { !$0.blocked }.prefix(5)) { item in
+                HStack(spacing: 8) {
+                    Text(item.fileName)
+                        .lineLimit(1)
+                    Image(systemName: "arrow.right")
+                        .foregroundStyle(.tertiary)
+                    Text(item.proposedFolder)
+                        .fontWeight(.medium)
+                        .lineLimit(1)
+                    Spacer()
+                }
+                .font(.caption)
+            }
+            if readyCount > 5 {
+                Text("+ \(readyCount - 5) more in Review the list")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.04)))
     }
 
     private func transferChoice(_ option: FileTransferMode) -> some View {

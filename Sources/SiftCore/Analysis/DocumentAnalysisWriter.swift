@@ -48,12 +48,17 @@ enum DocumentAnalysisWriter {
             opening: reading.excerpt,
             labels: subjects
         )
-        let tags = DocumentTags.sanitized(fileName: fileName, stored: (judged ?? subjects) + kinds)
+        let kept = judged ?? subjects
+        let tags = DocumentTags.sanitized(fileName: fileName, stored: kept + kinds)
+        let keptSet = Set(tags)
+        let scores = kinds.filter(keptSet.contains).map { LabelScore(label: $0, score: 1, source: .documentKind) }
+            + kept.filter(keptSet.contains).map { LabelScore(label: $0, score: 1, source: .documentSubject) }
         let result = PhotoAnalysisResult(
             isScreenshotOrDocument: false,
             textLineCount: lines.count,
             topCategories: tags,
-            recognizedText: Array(lines.prefix(40))
+            recognizedText: Array(lines.prefix(40)),
+            labelScores: scores
         )
         let context = ModelContext(StratumSchema.modelContainer)
         context.autosaveEnabled = false
@@ -72,6 +77,7 @@ enum DocumentAnalysisWriter {
         record.featurePrintData = result.featurePrintData
         record.recognizedTextLines = result.recognizedText
         record.pipeline = .documents
+        record.applyEvidence(from: result)
         if context.hasChanges {
             try context.save()
         }

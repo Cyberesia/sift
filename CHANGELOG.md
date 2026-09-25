@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-09-25
+
+### Added
+
+- **Command field** — at the top of Discover. Type what you want: find files already in the catalog, add a folder or this Mac, or prepare a filing plan. Each folder opens the same field, limited to that folder, with an “Only …” pill. Nothing moves until the final confirmation.
+- **Find in the catalog** — “find pictures with dogs”, “photos de chiens”. Sift searches what is already cataloged and always answers: the files that match, the closest-looking ones when nothing is labeled that way, or why nothing came back. The next button opens Library, or offers to scan more folders. “dogs” also finds labels stored as “dog”.
+- **What a folder holds** — Discover shows each folder’s extensions and counts, so only part of it can be acted on.
+
+### Changed
+
+- **Organize** — Continue opens the Organize page with the plan already loaded. “What will change” opens only from Review the list. If the destination folder or the Move or Copy choice is still missing, the button returns to that step instead of staying disabled. The three steps match everywhere: destination, Move or Copy, review and file. Typing “move” or “copy” does not make the choice.
+
+### Fixed
+
+- The filing card follows the sentence. “Organize by date” replaces “Organize by type” as soon as that is clear.
+
 ## [0.1.3] - 2026-09-24
 
 ### Added
@@ -68,7 +84,9 @@ Sift catalogs photos, video, audio, and documents where they already are. Nothin
 - **Quiet updates** — a change inside a saved folder checks those files. A full walk of a folder such as Downloads happens when you choose Look again.
 - **Jev (optional)** — with a key saved, Return can route a command or pick among a short list. No key, or a low-confidence answer, keeps the local result. Pixels and document text stay on this Mac.
 
-[Unreleased]: https://github.com/Cyberesia/sift/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/Cyberesia/sift/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/Cyberesia/sift/releases/tag/v0.1.4
+[0.1.3]: https://github.com/Cyberesia/sift/releases/tag/v0.1.3
 [0.1.2]: https://github.com/Cyberesia/sift/releases/tag/v0.1.2
 [0.1.1]: https://github.com/Cyberesia/sift/releases/tag/v0.1.1
 [0.1.0]: https://github.com/Cyberesia/sift/releases/tag/v0.1.0

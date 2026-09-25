@@ -45,19 +45,32 @@ public final class TransferJournal {
         guard fm.fileExists(atPath: record.destinationPath) else {
             throw FileTransferError.sourceMissing
         }
-        if fm.fileExists(atPath: record.sourcePath) {
-            throw FileTransferError.transferFailed("Original path already exists.")
+        switch record.mode {
+        case .copy, .copyThenConfirmDelete:
+            if fm.fileExists(atPath: record.sourcePath) {
+                try fm.removeItem(atPath: record.destinationPath)
+            } else {
+                try restoreMovedFile(record, fileManager: fm)
+            }
+        case .move:
+            try restoreMovedFile(record, fileManager: fm)
         }
-        try fm.createDirectory(
-            at: URL(fileURLWithPath: record.sourcePath).deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try fm.moveItem(atPath: record.destinationPath, toPath: record.sourcePath)
         try store.updateAssetPath(
             assetID: record.assetID,
             newURL: URL(fileURLWithPath: record.sourcePath)
         )
         record.isUndone = true
         try context.save()
+    }
+
+    private func restoreMovedFile(_ record: TransferRecord, fileManager: FileManager) throws {
+        if fileManager.fileExists(atPath: record.sourcePath) {
+            throw FileTransferError.transferFailed("Original path already exists.")
+        }
+        try fileManager.createDirectory(
+            at: URL(fileURLWithPath: record.sourcePath).deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try fileManager.moveItem(atPath: record.destinationPath, toPath: record.sourcePath)
     }
 }

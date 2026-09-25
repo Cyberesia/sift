@@ -60,6 +60,18 @@ public final class MediaAssetRecord {
     public var recognizedTextJSON: String?
     public var clusterID: String?
     public var personClusterID: String?
+    public var fileExtension: String?
+    public var uti: String?
+    public var pixelWidth: Int?
+    public var pixelHeight: Int?
+    public var durationSeconds: Double?
+    public var captureDate: Date?
+    public var screenshotReason: String?
+    public var labelScoresJSON: String?
+    public var rejectedLabelsJSON: String?
+    /// Folder name of a transfer the user undid. The next plan holds the file instead of repeating it.
+    public var undoneFolder: String?
+    public var evidenceVersion: Int = 0
 
     public init(
         id: String,
@@ -170,6 +182,32 @@ public final class MediaAssetRecord {
         }
         set {
             detectedAnimalsJSON = try? String(data: JSONEncoder().encode(newValue), encoding: .utf8)
+        }
+    }
+
+    public var labelScores: [LabelScore] {
+        get {
+            guard let labelScoresJSON,
+                  let data = labelScoresJSON.data(using: .utf8),
+                  let decoded = try? JSONDecoder().decode([LabelScore].self, from: data) else { return [] }
+            return decoded
+        }
+        set {
+            labelScoresJSON = try? String(data: JSONEncoder().encode(newValue), encoding: .utf8)
+        }
+    }
+
+    public var rejectedLabels: [String] {
+        get {
+            guard let rejectedLabelsJSON,
+                  let data = rejectedLabelsJSON.data(using: .utf8),
+                  let decoded = try? JSONDecoder().decode([String].self, from: data) else { return [] }
+            return decoded
+        }
+        set {
+            rejectedLabelsJSON = newValue.isEmpty
+                ? nil
+                : try? String(data: JSONEncoder().encode(newValue), encoding: .utf8)
         }
     }
 }

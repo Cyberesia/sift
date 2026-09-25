@@ -453,6 +453,8 @@ public final class IndexingCoordinator: ObservableObject {
         do {
             try await runControl.checkpoint()
 
+            try store.backfillFileExtensions()
+            try store.markStaleEvidenceForAnalysis()
             let total = try store.unanalyzedCount()
             guard total > 0 else {
                 await generateClipEmbeddingsForPending()
@@ -589,6 +591,11 @@ public final class IndexingCoordinator: ObservableObject {
             }.value
             return
         }
+        if record.kind == .audio {
+            let result = await FileEvidenceReader.audio(at: record.fileURL)
+            try store.applyAnalysis(assetID: record.id, result: result, pipeline: .music, persist: false)
+            return
+        }
         if record.thumbnailPath == nil || !FileManager.default.fileExists(atPath: record.thumbnailPath ?? "") {
             if let thumbSource = await resolveThumbnailURL(record: record) {
                 _ = try await ThumbnailCache.generateThumbnail(for: thumbSource, assetID: record.id)
@@ -605,10 +612,14 @@ public final class IndexingCoordinator: ObservableObject {
                 try markAnalysisSkipped(record: record)
                 return
             }
+            let header = FileEvidenceReader.imageHeader(at: record.fileURL)
+            let width = header?.pixelWidth ?? cgImage.width
+            let height = header?.pixelHeight ?? cgImage.height
             let metadata = AssetMetadata(
-                pixelWidth: cgImage.width,
-                pixelHeight: cgImage.height,
-                isScreenshotCandidate: isScreenshotDimensions(width: cgImage.width, height: cgImage.height)
+                pixelWidth: width,
+                pixelHeight: height,
+                isScreenshotCandidate: isScreenshotDimensions(width: width, height: height),
+                captureDate: header?.captureDate
             )
             let vision = analyzer
             result = try await Task.detached(priority: .userInitiated) {
@@ -625,7 +636,12 @@ public final class IndexingCoordinator: ObservableObject {
     }
 
     private func markAnalysisSkipped(record: MediaAssetRecord) throws {
-        let pipeline: MediaPipeline = record.kind == .video ? .videos : .photography
+        let pipeline: MediaPipeline = switch record.kind {
+        case .video: .videos
+        case .audio: .music
+        case .document: .documents
+        case .image: .photography
+        }
         try store.applyAnalysis(assetID: record.id, result: PhotoAnalysisResult(), pipeline: pipeline, persist: false)
     }
 

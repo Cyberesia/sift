@@ -19,6 +19,7 @@ public struct AssetPreviewCarousel: View {
     let onMoveToVideos: (() -> Void)?
     let onMoveToGather: (() -> Void)?
     let onPersonLabelCommit: (String) -> Void
+    let onRejectLabel: (String) -> Void
 
     @State private var displayImage: PlatformPreviewImage?
     @State private var imagePixelSize: CGSize?
@@ -48,7 +49,8 @@ public struct AssetPreviewCarousel: View {
         onMoveToPhotos: (() -> Void)? = nil,
         onMoveToVideos: (() -> Void)? = nil,
         onMoveToGather: (() -> Void)? = nil,
-        onPersonLabelCommit: @escaping (String) -> Void = { _ in }
+        onPersonLabelCommit: @escaping (String) -> Void = { _ in },
+        onRejectLabel: @escaping (String) -> Void = { _ in }
     ) {
         self.assets = assets
         _selectionIndex = selectionIndex
@@ -63,6 +65,7 @@ public struct AssetPreviewCarousel: View {
         self.onMoveToVideos = onMoveToVideos
         self.onMoveToGather = onMoveToGather
         self.onPersonLabelCommit = onPersonLabelCommit
+        self.onRejectLabel = onRejectLabel
     }
 
     private var currentAsset: MediaAssetSummary? {
@@ -400,11 +403,21 @@ public struct AssetPreviewCarousel: View {
                         PrismSettingRow(title: "Tags", icon: "tag") {
                             FlowLayout(spacing: 6) {
                                 ForEach(asset.topCategories.prefix(8), id: \.self) { tag in
-                                    Text(tag)
-                                        .font(.caption2.weight(.medium))
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 4)
-                                        .background(Capsule().fill(.white.opacity(0.12)))
+                                    HStack(spacing: 4) {
+                                        Text(tag)
+                                            .font(.caption2.weight(.medium))
+                                        Button {
+                                            onRejectLabel(tag)
+                                        } label: {
+                                            Image(systemName: "xmark")
+                                                .font(.system(size: 8, weight: .bold))
+                                        }
+                                        .buttonStyle(.plain)
+                                        .help("Remove this label from future suggestions")
+                                    }
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Capsule().fill(.white.opacity(0.12)))
                                 }
                             }
                         }
@@ -764,7 +777,7 @@ private final class StripScrollProbe {
 
 // MARK: - Flow layout
 
-private struct FlowLayout: Layout {
+struct FlowLayout: Layout {
     var spacing: CGFloat = 8
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {

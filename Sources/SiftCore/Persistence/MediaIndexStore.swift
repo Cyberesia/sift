@@ -230,6 +230,8 @@ public final class MediaIndexStore: ObservableObject {
                 modifiedAt: item.modifiedAt,
                 pipelineRaw: initialPipeline.rawValue
             )
+            record.fileExtension = EvidenceCard.fileExtension(of: item.url)
+            record.uti = EvidenceCard.uti(forExtension: record.fileExtension)
             context.insert(record)
             inserted += 1
         }
@@ -254,7 +256,60 @@ public final class MediaIndexStore: ObservableObject {
         record.featurePrintData = result.featurePrintData
         record.recognizedTextLines = result.recognizedText
         record.pipeline = pipeline
+        record.applyEvidence(from: result)
         if persist { try flush() }
+    }
+
+    /// Copies the extension and type from the path for rows cataloged before those columns existed. No file is read.
+    public func backfillFileExtensions() throws {
+        let missing = try context.fetch(FetchDescriptor<MediaAssetRecord>(
+            predicate: #Predicate { $0.fileExtension == nil }
+        ))
+        guard !missing.isEmpty else { return }
+        for record in missing {
+            let ext = EvidenceCard.fileExtension(of: record.fileURL)
+            record.fileExtension = ext
+            record.uti = record.uti ?? EvidenceCard.uti(forExtension: ext)
+        }
+        try context.save()
+    }
+
+    /// Queues analyzed rows whose evidence predates the current card version. Search keeps the old labels meanwhile.
+    public func markStaleEvidenceForAnalysis() throws {
+        let current = EvidenceCard.currentVersion
+        let stale = try context.fetch(FetchDescriptor<MediaAssetRecord>(
+            predicate: #Predicate { $0.isAnalyzed && $0.evidenceVersion < current }
+        ))
+        guard !stale.isEmpty else { return }
+        for record in stale {
+            record.isAnalyzed = false
+        }
+        try context.save()
+        refreshCounts()
+    }
+
+    /// Per-folder counts by extension and kind, for every source in the catalog.
+    public func compositions() throws -> [String: CatalogComposition] {
+        try backfillFileExtensions()
+        let records = try context.fetch(FetchDescriptor<MediaAssetRecord>())
+        let grouped = Dictionary(grouping: records.map(CompositionFile.init(record:)), by: \.sourceLabel)
+        return grouped.mapValues { CatalogComposition.make(sourceLabel: $0.first?.sourceLabel ?? "", files: $0) }
+    }
+
+    /// Remembers a label the user removed. It stays off the card and out of the next plan.
+    public func rejectLabel(assetID: String, label: String) throws {
+        guard let record = try fetchAsset(id: assetID) else { return }
+        var rejected = record.rejectedLabels
+        if !rejected.contains(label) { rejected.append(label) }
+        record.rejectedLabels = rejected
+        record.topCategories = record.topCategories.filter { $0 != label }
+        try context.save()
+    }
+
+    public func recordUndoneTransfer(assetID: String, folder: String) throws {
+        guard let record = try fetchAsset(id: assetID) else { return }
+        record.undoneFolder = folder
+        try context.save()
     }
 
     public func setThumbnailPath(assetID: String, path: String) throws {
@@ -425,7 +480,8 @@ public final class MediaIndexStore: ObservableObject {
         query: String,
         includeFileNames: Bool = false,
         includeRecognizedText: Bool = true,
-        limit: Int = 80
+        limit: Int = 80,
+        tryVariants: Bool = true
     ) throws -> [MediaAssetRecord] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
@@ -493,6 +549,18 @@ public final class MediaIndexStore: ObservableObject {
             guard includeFileNames else { return false }
             return SearchTermMatcher.containsTerm(trimmed, in: record.fileURL.lastPathComponent)
                 || SearchTermMatcher.containsTerm(trimmed, in: record.sourceLabel)
+        }
+        if matched.isEmpty, tryVariants, !trimmed.contains(" ") {
+            for variant in AssistantFindResult.variants(of: lower).dropFirst() {
+                let found = try searchAssets(
+                    query: variant,
+                    includeFileNames: includeFileNames,
+                    includeRecognizedText: includeRecognizedText,
+                    limit: limit,
+                    tryVariants: false
+                )
+                if !found.isEmpty { return found }
+            }
         }
         return matched.sorted { lhs, rhs in
             let lhsAnimal = SearchTermMatcher.containsTerm(trimmed, in: lhs.detectedAnimals.joined(separator: " "))
@@ -629,6 +697,8 @@ public final class MediaIndexStore: ObservableObject {
     public func updateAssetPath(assetID: String, newURL: URL) throws {
         guard let record = try fetchAsset(id: assetID) else { return }
         record.fileURLString = newURL.path
+        record.fileExtension = EvidenceCard.fileExtension(of: newURL)
+        record.uti = EvidenceCard.uti(forExtension: record.fileExtension)
         record.modifiedAt = Date()
         try context.save()
     }
@@ -644,6 +714,9 @@ public final class MediaIndexStore: ObservableObject {
             record.detectedAnimals = []
             record.faceCount = 0
             record.featurePrintData = nil
+            record.labelScoresJSON = nil
+            record.screenshotReason = nil
+            record.evidenceVersion = 0
             record.clusterID = nil
             record.personClusterID = nil
             record.pipeline = .photography

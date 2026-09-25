@@ -22,6 +22,15 @@ public struct VideoKeyframeAnalyzer: Sendable {
 
         var merged = PhotoAnalysisResult()
         merged.isScreenshotOrDocument = false
+        if seconds.isFinite, seconds > 0 { merged.durationSeconds = seconds }
+        if let track = try? await asset.loadTracks(withMediaType: .video).first,
+           let size = try? await track.load(.naturalSize),
+           let transform = try? await track.load(.preferredTransform) {
+            let turned = size.applying(transform)
+            merged.pixelWidth = Int(abs(turned.width).rounded())
+            merged.pixelHeight = Int(abs(turned.height).rounded())
+        }
+        var scores: [String: Double] = [:]
 
         for time in sampleTimes {
             let cgImage: CGImage
@@ -44,6 +53,16 @@ public struct VideoKeyframeAnalyzer: Sendable {
                 merged.isScreenshotOrDocument = true
             }
             merged.featurePrintData = frameResult.featurePrintData ?? merged.featurePrintData
+            for item in frameResult.labelScores ?? [] {
+                scores[item.label] = max(scores[item.label] ?? 0, item.score)
+            }
+        }
+        merged.labelScores = scores
+            .sorted { $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value }
+            .prefix(5)
+            .map { LabelScore(label: $0.key, score: $0.value, source: .vision) }
+        if !scores.isEmpty {
+            merged.topCategories = merged.labelScores?.map(\.label) ?? merged.topCategories
         }
 
         return merged

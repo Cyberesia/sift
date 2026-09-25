@@ -120,7 +120,7 @@ public struct MacScanWizard: View {
 public struct OrganizePlanSheet: View {
     let items: [OrganizePlanItem]
     let confirmLabel: String
-    let canConfirm: Bool
+    let blocker: OrganizeBlocker?
     let onApproveSafe: () -> Void
     let onClose: () -> Void
     @State private var confirm: SiftConfirm?
@@ -128,13 +128,13 @@ public struct OrganizePlanSheet: View {
     public init(
         items: [OrganizePlanItem],
         confirmLabel: String = "File the waiting ones",
-        canConfirm: Bool = true,
+        blocker: OrganizeBlocker? = nil,
         onApproveSafe: @escaping () -> Void,
         onClose: @escaping () -> Void
     ) {
         self.items = items
         self.confirmLabel = confirmLabel
-        self.canConfirm = canConfirm
+        self.blocker = blocker
         self.onApproveSafe = onApproveSafe
         self.onClose = onClose
     }
@@ -143,7 +143,9 @@ public struct OrganizePlanSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("What will change")
                 .font(.title2.weight(.semibold))
-            Text("Nothing happens until you confirm on the Organize screen. Files already inside the destination, and originals that already have a copy, stay put.")
+            Text(blocker == nil
+                 ? "Nothing happens until you press the button below and confirm. Files already inside the destination, and originals that already have a copy, stay put."
+                 : "This is a preview. \(blocker!.instruction), then come back to file.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             let safe = items.filter { !$0.blocked }
@@ -160,22 +162,30 @@ public struct OrganizePlanSheet: View {
             }
             .frame(minHeight: 180)
             HStack {
-                Button("Close", action: onClose)
-                    .prismClickable()
-                Spacer()
-                Button(confirmLabel) {
-                    confirm = SiftConfirm(
-                        title: "Change these files?",
-                        message: "\(confirmLabel). Files marked as left as they are are not touched.",
-                        confirmTitle: confirmLabel,
-                        destructive: confirmLabel.hasPrefix("Move")
-                    ) {
-                        onApproveSafe()
+                if let blocker {
+                    Spacer()
+                    Button("Close and \(blocker.instruction.prefix(1).lowercased() + blocker.instruction.dropFirst())", action: onClose)
+                        .buttonStyle(.borderedProminent)
+                        .keyboardShortcut(.defaultAction)
+                        .prismClickable()
+                } else {
+                    Button("Close", action: onClose)
+                        .prismClickable()
+                    Spacer()
+                    Button(confirmLabel) {
+                        confirm = SiftConfirm(
+                            title: "Change these files?",
+                            message: "\(confirmLabel). Files marked as left as they are are not touched.",
+                            confirmTitle: confirmLabel,
+                            destructive: confirmLabel.hasPrefix("Move")
+                        ) {
+                            onApproveSafe()
+                        }
                     }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(safe.isEmpty)
+                        .prismClickable()
                 }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(safe.isEmpty || !canConfirm)
-                    .prismClickable()
             }
         }
         .padding(20)
