@@ -100,7 +100,7 @@ public struct IndexDock: View {
                                 .foregroundStyle(PrismTheme.textTertiary)
                                 .padding(.horizontal, 7)
                                 .padding(.vertical, 3)
-                                .background(.white.opacity(0.06), in: Capsule())
+                                .background(PrismTheme.wash.opacity(0.06), in: Capsule())
                         }
                         Spacer(minLength: 8)
                         if let progress = progressFraction, !isIdle {
@@ -243,7 +243,7 @@ public struct IndexDock: View {
     private func luminousTrack(_ progress: Double) -> some View {
         GeometryReader { geo in
             Capsule()
-                .fill(.white.opacity(0.08))
+                .fill(PrismTheme.wash.opacity(0.08))
             Capsule()
                 .fill(isPaused ? AnyShapeStyle(Color.yellow) : AnyShapeStyle(PrismTheme.accentGradient))
                 .frame(width: max(8, geo.size.width * progress))
@@ -263,8 +263,8 @@ public struct IndexDock: View {
                 .font(.caption.weight(.semibold))
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
-                .background(.white.opacity(0.06), in: Capsule())
-                .overlay { Capsule().strokeBorder(.white.opacity(0.12), lineWidth: 1) }
+                .background(PrismTheme.wash.opacity(0.06), in: Capsule())
+                .overlay { Capsule().strokeBorder(PrismTheme.wash.opacity(0.12), lineWidth: 1) }
         }
         .buttonStyle(.plain)
         .help(help)

@@ -1,3 +1,4 @@
+import Combine
 import SiftCore
 import SiftDesign
 import SwiftUI
@@ -15,6 +16,8 @@ public final class SiftRootSession: ObservableObject {
     public let fileTransfer = FileTransferCoordinator()
     public let transferJournal: TransferJournal
     public let organizeRulesEngine: OrganizeRulesEngine
+    public let intelligence: IntelligenceCenter
+    public let folderRules: FolderRuleEngine
 
     #if os(macOS)
     let islandController = SiftIslandController()
@@ -35,12 +38,12 @@ public final class SiftRootSession: ObservableObject {
     @Published public var collections: [StratumCollectionRecord] = []
     @Published public var commandOrbPresented = false
     @Published public var commandQuery = ""
-    @Published public var includeFileNamesInSearch = UserDefaults.standard.bool(forKey: "sift.search.includeFileNames")
+    @Published public var includeFileNamesInSearch = SiftRuntime.defaults.bool(forKey: "sift.search.includeFileNames")
     @Published public var selectedAsset: MediaAssetSummary?
     @Published public var relatedAssets: [MediaAssetSummary] = []
     @Published public var libraryViewMode: LibraryViewMode =
-        LibraryViewMode(rawValue: UserDefaults.standard.string(forKey: "sift.library.viewMode") ?? "") ?? .grid {
-        didSet { UserDefaults.standard.set(libraryViewMode.rawValue, forKey: "sift.library.viewMode") }
+        LibraryViewMode(rawValue: SiftRuntime.defaults.string(forKey: "sift.library.viewMode") ?? "") ?? .grid {
+        didSet { SiftRuntime.defaults.set(libraryViewMode.rawValue, forKey: "sift.library.viewMode") }
     }
     @Published public var visualDirections: Set<VisualDirection> = []
     @Published public var browseScope: LibraryBrowseScope = .allSources
@@ -62,14 +65,16 @@ public final class SiftRootSession: ObservableObject {
 
     #if os(macOS)
     private var sourceFolderWatcher: SourceFolderWatcher?
+    private var rulesObserver: AnyCancellable?
+    private var skinObserver: AnyCancellable?
     #endif
 
     public var watchSourceFolders: Bool {
         get {
-            UserDefaults.standard.object(forKey: "sift.watchSourceFolders") as? Bool ?? true
+            SiftRuntime.defaults.object(forKey: "sift.watchSourceFolders") as? Bool ?? true
         }
         set {
-            UserDefaults.standard.set(newValue, forKey: "sift.watchSourceFolders")
+            SiftRuntime.defaults.set(newValue, forKey: "sift.watchSourceFolders")
             #if os(macOS)
             if newValue {
                 startSourceFolderWatcher()
@@ -79,6 +84,15 @@ public final class SiftRootSession: ObservableObject {
             #endif
         }
     }
+
+    /// Settings open over the window, with a Back button.
+    @Published public var showSettings = false
+    @Published public var settingsPage: SettingsPage = .general
+    /// Lets the demo tour move the setup to a step.
+    @Published public var setupStepRequest: Int?
+    /// The first-run setup, also reachable from Settings and the Help menu.
+    @Published public var showSetup = !SiftRuntime.defaults.bool(forKey: SiftRootSession.setupDoneKey)
+    nonisolated static let setupDoneKey = "sift.setup.completed"
 
     @Published public var pendingFolderURL: URL?
     @Published public var showFolderIntakeWizard = false
@@ -113,8 +127,8 @@ public final class SiftRootSession: ObservableObject {
     @Published public var showPostOrganizeSuccess = false
     @Published public var showConfirmDeleteOrigins = false
     @Published public var pendingDeleteSourcePaths: [String] = []
-    @Published public var skipAITaggingPrompt: Bool = UserDefaults.standard.bool(forKey: "sift.skipAITaggingPrompt") {
-        didSet { UserDefaults.standard.set(skipAITaggingPrompt, forKey: "sift.skipAITaggingPrompt") }
+    @Published public var skipAITaggingPrompt: Bool = SiftRuntime.defaults.bool(forKey: "sift.skipAITaggingPrompt") {
+        didSet { SiftRuntime.defaults.set(skipAITaggingPrompt, forKey: "sift.skipAITaggingPrompt") }
     }
 
     @Published public var previewAssets: [MediaAssetSummary] = []
@@ -130,17 +144,17 @@ public final class SiftRootSession: ObservableObject {
     @Published public private(set) var windowContentSize: CGSize = CGSize(width: 1200, height: 780)
 
     public var fileTransferMode: FileTransferMode {
-        get { FileTransferMode(rawValue: UserDefaults.standard.string(forKey: "sift.fileTransferMode") ?? "") ?? .move }
+        get { FileTransferMode(rawValue: SiftRuntime.defaults.string(forKey: "sift.fileTransferMode") ?? "") ?? .move }
         set {
-            UserDefaults.standard.set(newValue.rawValue, forKey: "sift.fileTransferMode")
-            UserDefaults.standard.set(true, forKey: "sift.fileTransferModeChosen")
+            SiftRuntime.defaults.set(newValue.rawValue, forKey: "sift.fileTransferMode")
+            SiftRuntime.defaults.set(true, forKey: "sift.fileTransferModeChosen")
             objectWillChange.send()
         }
     }
 
     /// False until the user picks Move or Copy in the organize step. A saved mode is not treated as a choice.
     public var transferChoiceConfirmed: Bool {
-        UserDefaults.standard.bool(forKey: "sift.fileTransferModeChosen")
+        SiftRuntime.defaults.bool(forKey: "sift.fileTransferModeChosen")
     }
 
     @Published public var structureFolders: Set<String> = Set(FileTransferCoordinator.suggestedCatalogFolders)
@@ -175,6 +189,15 @@ public final class SiftRootSession: ObservableObject {
         self.collectionSuggester = CollectionSuggester(store: store)
         self.clusterEngine = ClusterEngine(store: store)
         self.organizeRulesEngine = OrganizeRulesEngine(store: store)
+        let intelligence = IntelligenceCenter()
+        self.intelligence = intelligence
+        self.folderRules = FolderRuleEngine(
+            bookmarkStore: bookmarks,
+            destinationStore: destinations,
+            indexStore: store,
+            journal: transferJournal,
+            intelligence: intelligence
+        )
 
         indexingCoordinator.onLibraryChanged = { [weak self] in
             Task { @MainActor in
@@ -186,12 +209,201 @@ public final class SiftRootSession: ObservableObject {
             self.notchChrome.clipEmbeddedCount = (try? self.indexStore.clipEmbeddedCount()) ?? 0
         }
 
+        folderRules.onFilesMoved = { [weak self] in
+            self?.reloadLibrary()
+        }
+        #if os(macOS)
+        // A new skin changes the calm default the background blends with.
+        skinObserver = PrismAppearanceStore.shared.$skin
+            .dropFirst()
+            .sink { [weak self] _ in
+                Task { @MainActor in self?.updatePalette() }
+            }
+        // Turning a rule on needs the folder watcher, even when catalog watching is off.
+        rulesObserver = folderRules.$rules
+            .map { $0.contains(where: \.isEnabled) }
+            .removeDuplicates()
+            .dropFirst()
+            .sink { [weak self] anyOn in
+                guard let self, anyOn else { return }
+                Task { @MainActor in self.startSourceFolderWatcher(force: true) }
+            }
+        #endif
+        #if os(macOS)
+        folderRules.onFilesWaiting = { count, ruleName in
+            guard !NSApp.isActive else { return }
+            SiftNotificationService.notify(
+                title: tr("\(count) file(s) to review", "\(count) fichier(s) à valider"),
+                body: tr("\(ruleName) matched a new file. Open Sift › Rules › To review.", "\(ruleName) a retenu un nouveau fichier. Ouvrez Sift › Règles › À valider.")
+            )
+        }
+        #endif
+
+        #if DEBUG
+        applyDebugLaunchArguments()
+        #endif
+
         reloadLibrary()
         catalogCompositions = (try? indexStore.compositions()) ?? [:]
         #if os(macOS)
-        if watchSourceFolders {
+        if watchSourceFolders || folderRules.enabledCount > 0 {
             startSourceFolderWatcher()
         }
+        #endif
+    }
+
+    #if DEBUG
+    /// Debug builds only, for screenshots and screen recordings:
+    /// `-siftSetup YES`, `-siftSettings general|folders|reading|…`, `-siftMode rules|library|…`.
+    /// Launch arguments land in UserDefaults' argument domain, so nothing is saved.
+    private func applyDebugLaunchArguments() {
+        let defaults = SiftRuntime.defaults
+        if let mode = defaults.string(forKey: "siftMode").flatMap(AppMode.init(rawValue:)) {
+            appMode = mode
+            showSetup = false
+        }
+        if let page = defaults.string(forKey: "siftSettings").flatMap(SettingsPage.init(rawValue:)) {
+            settingsPage = page
+            showSettings = true
+            showSetup = false
+        }
+        if defaults.object(forKey: "siftSetup") != nil {
+            showSetup = defaults.bool(forKey: "siftSetup")
+        }
+        if SiftRuntime.isDemo {
+            seedDemoFolders()
+            if defaults.bool(forKey: "siftDemoTour") {
+                Task { @MainActor [weak self] in
+                    try? await Task.sleep(for: .seconds(1))
+                    // The recording tour lives in a local file outside the repository; without it, nothing runs.
+                    if let self, let runner = NSClassFromString("SiftDemoTour") as? SiftDemoTourRunning.Type {
+                        await runner.run(self)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Demo runs only: `-siftDemoHome <folder>` saves its subfolders as sources and `Sorted` as the destination,
+    /// without the open panel, so a recording needs no clicks.
+    private func seedDemoFolders() {
+        guard let home = SiftRuntime.defaults.string(forKey: "siftDemoHome") else { return }
+        let root = URL(fileURLWithPath: home, isDirectory: true)
+        if bookmarkStore.folders.isEmpty {
+            for name in ["Pictures", "Downloads", "Desktop", "Documents"] {
+                let url = root.appendingPathComponent(name, isDirectory: true)
+                if FileManager.default.fileExists(atPath: url.path) {
+                    _ = try? bookmarkStore.add(url: url, includeSubfolders: name != "Downloads")
+                }
+            }
+        }
+        if destinationStore.destinations.isEmpty {
+            let sorted = root.appendingPathComponent("Sorted", isDirectory: true)
+            try? FileManager.default.createDirectory(at: sorted, withIntermediateDirectories: true)
+            _ = try? destinationStore.add(url: sorted)
+        }
+        if SiftRuntime.defaults.bool(forKey: "siftDemoRules") { seedDemoRules() }
+    }
+
+    /// The three starter rules on the demo Downloads, switched on and asking first.
+    func seedDemoRules() {
+        guard folderRules.rules.isEmpty,
+              let downloads = bookmarkStore.folders.first(where: { $0.displayName == "Downloads" }) else { return }
+        for template in [FolderRuleTemplate.invoices, .screenshots, .installers] {
+            var rule = template.make(watchedFolderID: downloads.id, destinationID: destinationStore.activeDestinationID)
+            rule.isEnabled = true
+            rule.mode = .askFirst
+            folderRules.addRule(rule)
+        }
+    }
+
+    #endif
+
+    // MARK: - Settings and setup
+
+    public func openSettings(_ page: SettingsPage = .general) {
+        settingsPage = page
+        showSetup = false
+        showSettings = true
+        #if os(macOS)
+        NSApp.activate(ignoringOtherApps: true)
+        #endif
+    }
+
+    public func openSetup() {
+        showSettings = false
+        showSetup = true
+        #if os(macOS)
+        NSApp.activate(ignoringOtherApps: true)
+        #endif
+    }
+
+    public func finishSetup(startScan: Bool, openMode: AppMode?) {
+        SiftRuntime.defaults.set(true, forKey: Self.setupDoneKey)
+        showSetup = false
+        if let openMode { appMode = openMode }
+        if startScan, !bookmarkStore.folders.isEmpty {
+            startDiscoverOnly()
+        }
+    }
+
+    /// Asks for one folder, opening the panel on the suggested place so a single click grants it.
+    public func addSourceFolder(suggested: URL?) async -> FolderBookmark? {
+        #if os(macOS)
+        guard let url = await BookmarkStore.pickFolder(
+            startingAt: suggested,
+            message: tr("Sift catalogs this folder. Nothing is moved.", "Sift catalogue ce dossier. Rien n’est déplacé."),
+            prompt: tr("Add", "Ajouter")
+        ) else { return nil }
+        let bookmark = try? bookmarkStore.add(url: url, includeSubfolders: true)
+        startSourceFolderWatcher(force: true)
+        return bookmark
+        #else
+        return nil
+        #endif
+    }
+
+    public func addDestinationFolder(suggested: URL?) async -> DestinationBookmark? {
+        #if os(macOS)
+        guard let url = await DestinationStore.pickFolder(
+            startingAt: suggested,
+            message: tr("Tidied files go inside this folder. You can create a new one here.",
+                        "Les fichiers rangés vont dans ce dossier. Vous pouvez en créer un ici.")
+        ) else { return nil }
+        return try? destinationStore.add(url: url)
+        #else
+        return nil
+        #endif
+    }
+
+    // MARK: - Folder rules
+
+    /// Picks a folder for a rule to watch. It becomes a saved source, so the sandbox lets Sift read it.
+    public func addWatchedFolderForRule() async -> String? {
+        #if os(macOS)
+        guard let url = await BookmarkStore.pickFolder(),
+              let bookmark = try? bookmarkStore.add(url: url, includeSubfolders: false) else { return nil }
+        startSourceFolderWatcher(force: true)
+        return bookmark.id
+        #else
+        return nil
+        #endif
+    }
+
+    /// Picks a destination for a rule's moves.
+    public func addDestinationForRule() async -> String? {
+        #if os(macOS)
+        guard let url = await DestinationStore.pickFolder(),
+              let destination = try? destinationStore.add(url: url) else { return nil }
+        return destination.id
+        #else
+        return nil
+        #endif
+    }
+
+    public func revealInFinder(_ path: String) {
+        #if os(macOS)
+        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
         #endif
     }
 
@@ -1254,7 +1466,7 @@ public final class SiftRootSession: ObservableObject {
     public func setIncludeFileNamesInSearch(_ include: Bool) {
         guard includeFileNamesInSearch != include else { return }
         includeFileNamesInSearch = include
-        UserDefaults.standard.set(include, forKey: "sift.search.includeFileNames")
+        SiftRuntime.defaults.set(include, forKey: "sift.search.includeFileNames")
         if !commandQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             runSearch()
         }
@@ -1822,14 +2034,18 @@ public final class SiftRootSession: ObservableObject {
     }
 
     #if os(macOS)
-    public func startSourceFolderWatcher() {
-        guard watchSourceFolders else { return }
+    /// Folder rules need the watcher even when catalog watching is off; `force` is for them.
+    public func startSourceFolderWatcher(force: Bool = false) {
+        guard watchSourceFolders || force || folderRules.enabledCount > 0 else { return }
         if sourceFolderWatcher == nil {
             let watcher = SourceFolderWatcher(bookmarkStore: bookmarkStore)
             watcher.onFoldersChanged = { [weak self] bookmarks, paths in
                 guard let self else { return }
                 Task { @MainActor in
-                    await self.indexingCoordinator.ingestChangedFiles(bookmarks: bookmarks, paths: paths)
+                    self.folderRules.handleArrivals(bookmarks: bookmarks, paths: paths)
+                    if self.watchSourceFolders {
+                        await self.indexingCoordinator.ingestChangedFiles(bookmarks: bookmarks, paths: paths)
+                    }
                 }
             }
             sourceFolderWatcher = watcher
@@ -1839,6 +2055,8 @@ public final class SiftRootSession: ObservableObject {
     }
 
     public func stopSourceFolderWatcher() {
+        // Rules that are on keep the watcher running; only catalog updates stop.
+        guard folderRules.enabledCount == 0 else { return }
         sourceFolderWatcher?.stop()
     }
     #endif
@@ -2015,7 +2233,7 @@ private enum ScanKindStore {
     private static let key = "sift.scan.kinds"
 
     static func load() -> Set<MediaKind> {
-        guard let raw = UserDefaults.standard.stringArray(forKey: key) else {
+        guard let raw = SiftRuntime.defaults.stringArray(forKey: key) else {
             return Set(MediaKind.allCases)
         }
         let kinds = Set(raw.compactMap(MediaKind.init(rawValue:)))
@@ -2023,13 +2241,13 @@ private enum ScanKindStore {
     }
 
     static func save(_ kinds: Set<MediaKind>) {
-        UserDefaults.standard.set(kinds.map(\.rawValue).sorted(), forKey: key)
+        SiftRuntime.defaults.set(kinds.map(\.rawValue).sorted(), forKey: key)
     }
 
     private static let extensionsKey = "sift.scan.documentExtensions"
 
     static func loadExtensions() -> Set<String> {
-        guard let raw = UserDefaults.standard.stringArray(forKey: extensionsKey) else {
+        guard let raw = SiftRuntime.defaults.stringArray(forKey: extensionsKey) else {
             return DocumentFormats.extensions
         }
         let known = Set(raw.filter { DocumentFormats.extensions.contains($0) })
@@ -2037,6 +2255,14 @@ private enum ScanKindStore {
     }
 
     static func saveExtensions(_ extensions: Set<String>) {
-        UserDefaults.standard.set(extensions.sorted(), forKey: extensionsKey)
+        SiftRuntime.defaults.set(extensions.sorted(), forKey: extensionsKey)
     }
 }
+
+#if DEBUG
+/// Implemented by a local, untracked file that films the launch video. Looked up by name at run time.
+@MainActor
+protocol SiftDemoTourRunning: AnyObject {
+    static func run(_ session: SiftRootSession) async
+}
+#endif

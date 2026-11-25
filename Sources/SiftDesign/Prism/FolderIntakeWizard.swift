@@ -145,7 +145,7 @@ public struct FolderIntakeWizard: View {
         .font(.subheadline)
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 12).fill(.white.opacity(0.06)))
+        .background(RoundedRectangle(cornerRadius: 12).fill(PrismTheme.wash.opacity(0.06)))
     }
 
     private var subfolderStep: some View {
@@ -239,7 +239,7 @@ public struct FolderIntakeWizard: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
-            .background(RoundedRectangle(cornerRadius: 10).fill(.white.opacity(isOn ? 0.1 : 0.06)))
+            .background(RoundedRectangle(cornerRadius: 10).fill(PrismTheme.wash.opacity(isOn ? 0.1 : 0.06)))
         }
         .buttonStyle(.plain)
         .prismClickable()
@@ -259,7 +259,7 @@ public struct FolderIntakeWizard: View {
         }
         .frame(maxWidth: .infinity)
         .padding(12)
-        .background(RoundedRectangle(cornerRadius: 12).fill(.white.opacity(0.08)))
+        .background(RoundedRectangle(cornerRadius: 12).fill(PrismTheme.wash.opacity(0.08)))
     }
 
     private func byteLabel(_ bytes: Int64) -> String {

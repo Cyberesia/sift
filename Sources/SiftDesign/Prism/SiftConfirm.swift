@@ -1,3 +1,4 @@
+import SiftCore
 import SwiftUI
 
 /// A change that waits for an explicit yes. Cancel leaves everything as it is.
@@ -37,7 +38,7 @@ extension View {
             Button(pending.confirmTitle, role: pending.destructive ? .destructive : nil) {
                 pending.run()
             }
-            Button(Locale.current.language.languageCode?.identifier == "fr" ? "Annuler" : "Cancel", role: .cancel) {}
+            Button(tr("Cancel", "Annuler"), role: .cancel) {}
         } message: { pending in
             Text(pending.message)
         }

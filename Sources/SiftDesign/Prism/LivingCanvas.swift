@@ -5,6 +5,7 @@ public struct LivingCanvas<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
     @State private var phase: Float = 0
 
     public init(palette: ExtractedPalette, @ViewBuilder content: @escaping () -> Content) {
@@ -60,8 +61,8 @@ public struct LivingCanvas<Content: View>: View {
             ]
         )
         .ignoresSafeArea()
-        .opacity(0.38)
-        .blendMode(.plusLighter)
+        .opacity(colorScheme == .dark ? 0.38 : 0.16)
+        .blendMode(colorScheme == .dark ? .plusLighter : .multiply)
     }
 
     private var gradientBackdrop: some View {

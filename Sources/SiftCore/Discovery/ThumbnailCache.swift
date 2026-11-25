@@ -18,8 +18,7 @@ public enum ThumbnailCache {
     )
 
     public static var cacheDirectory: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let dir = base.appendingPathComponent("Sift/thumbnails", isDirectory: true)
+        let dir = SiftRuntime.supportDirectory.appendingPathComponent("thumbnails", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }

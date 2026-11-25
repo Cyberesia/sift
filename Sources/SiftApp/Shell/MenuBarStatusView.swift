@@ -16,6 +16,21 @@ struct MenuBarStatusView: View {
                     .foregroundStyle(.secondary)
             }
             Divider()
+            Section {
+                let rulesOn = session.folderRules.enabledCount
+                Text(rulesOn == 0 ? tr("All rules paused", "Toutes les règles en pause") : tr("\(rulesOn) active rule(s) · read by \(session.intelligence.status.readerName)", "\(rulesOn) règle(s) active(s) · lu par \(session.intelligence.status.readerName)"))
+                    .font(.caption)
+                if !session.folderRules.pending.isEmpty {
+                    Button(tr("Apply \(session.folderRules.pending.count) to review", "Appliquer les \(session.folderRules.pending.count) à valider")) {
+                        session.folderRules.filePending()
+                    }
+                    Button(tr("Open To review…", "Ouvrir À valider…")) {
+                        session.appMode = .rules
+                        NSApp.activate(ignoringOtherApps: true)
+                    }
+                }
+            }
+            Divider()
             Button("Open Sift") {
                 NSApp.activate(ignoringOtherApps: true)
             }
@@ -29,8 +44,8 @@ struct MenuBarStatusView: View {
                 Button("Clear status") { session.dismissIndexingStatus() }
             }
             Divider()
-            Button("Settings…") {
-                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+            Button(tr("Settings…", "Réglages…")) {
+                session.openSettings()
             }
             Button("Quit") {
                 NSApp.terminate(nil)

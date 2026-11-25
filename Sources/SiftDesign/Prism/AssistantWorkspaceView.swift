@@ -178,7 +178,7 @@ public struct AssistantWorkspaceView: View {
                 .font(.caption.weight(.medium))
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
-                .background(Capsule().fill(Color.white.opacity(0.08)))
+                .background(Capsule().fill(PrismTheme.wash.opacity(0.08)))
                 .overlay(Capsule().strokeBorder(PrismTheme.borderSubtle, lineWidth: 1))
         }
         .buttonStyle(.plain)
@@ -375,7 +375,7 @@ public struct AssistantWorkspaceView: View {
                         .foregroundStyle(item.excluded ? PrismTheme.textTertiary : PrismTheme.textPrimary)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(Capsule().fill(item.excluded ? Color.white.opacity(0.04) : PrismTheme.accentSoft))
+                        .background(Capsule().fill(item.excluded ? PrismTheme.wash.opacity(0.04) : PrismTheme.accentSoft))
                 }
             }
             Text("This changes only the current selection. Files already in the catalog stay.")
@@ -440,7 +440,7 @@ public struct AssistantWorkspaceView: View {
             Text("\(number)")
                 .font(.caption2.weight(.bold))
                 .frame(width: 16, height: 16)
-                .background(Circle().fill(active ? PrismTheme.accent : Color.white.opacity(0.1)))
+                .background(Circle().fill(active ? PrismTheme.accent : PrismTheme.wash.opacity(0.1)))
             Text(title)
                 .fontWeight(active ? .semibold : .regular)
                 .foregroundStyle(active ? PrismTheme.textPrimary : PrismTheme.textSecondary)

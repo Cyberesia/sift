@@ -14,6 +14,8 @@ public final class SourceFolderWatcher {
     private var pathToBookmarkID: [String: String] = [:]
     private var suppressUntil = Date.distantPast
     private let debounceNanoseconds: UInt64 = 1_500_000_000
+    /// FSEvents is delivered off the main thread; only the debounced result touches the interface.
+    private let eventQueue = DispatchQueue(label: "ai.cyclones.sift.fsevents", qos: .utility)
     /// Launch attaches the stream and macOS reports the folders it just opened. Those are not new files.
 
     public init(bookmarkStore: BookmarkStore) {
@@ -41,14 +43,7 @@ public final class SourceFolderWatcher {
 
         stream = FSEventStreamCreate(
             nil,
-            { _, info, _, paths, _, _ in
-                guard let info else { return }
-                let watcher = Unmanaged<SourceFolderWatcher>.fromOpaque(info).takeUnretainedValue()
-                let pathList = unsafeBitCast(paths, to: NSArray.self) as? [String] ?? []
-                Task { @MainActor in
-                    watcher.handleEvents(paths: pathList)
-                }
-            },
+            sourceFolderWatcherCallback,
             &context,
             paths as CFArray,
             FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
@@ -58,7 +53,7 @@ public final class SourceFolderWatcher {
 
         guard let stream else { return }
         suppressUntil = Date().addingTimeInterval(12)
-        FSEventStreamSetDispatchQueue(stream, DispatchQueue.main)
+        FSEventStreamSetDispatchQueue(stream, eventQueue)
         FSEventStreamStart(stream)
     }
 
@@ -90,7 +85,7 @@ public final class SourceFolderWatcher {
         }
     }
 
-    private func handleEvents(paths eventPaths: [String]) {
+    fileprivate func handleEvents(paths eventPaths: [String]) {
         guard Date() >= suppressUntil else { return }
         guard !eventPaths.isEmpty else { return }
         let meaningful = eventPaths.contains { path in
@@ -126,6 +121,22 @@ public final class SourceFolderWatcher {
         let bookmarks = bookmarkStore.folders.filter { bookmarkIDs.contains($0.id) }
         guard !bookmarks.isEmpty else { return }
         onFoldersChanged?(bookmarks, eventPaths)
+    }
+}
+/// The pointer to the watcher, carried to the main actor. The watcher outlives its stream: `stop()` runs first.
+private struct WatcherReference: @unchecked Sendable {
+    let pointer: UnsafeMutableRawPointer
+}
+
+/// FSEvents calls this on the watcher's utility queue, off the main thread. It must not be main-actor isolated:
+/// it only copies the paths and hops to the main actor.
+private let sourceFolderWatcherCallback: FSEventStreamCallback = { _, info, _, paths, _, _ in
+    guard let info else { return }
+    let reference = WatcherReference(pointer: info)
+    let pathList = unsafeBitCast(paths, to: NSArray.self) as? [String] ?? []
+    Task { @MainActor in
+        let watcher = Unmanaged<SourceFolderWatcher>.fromOpaque(reference.pointer).takeUnretainedValue()
+        watcher.handleEvents(paths: pathList)
     }
 }
 #endif

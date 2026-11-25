@@ -69,7 +69,7 @@ public struct IndexingControlBar: View {
         .prismClickable()
         .background(
             Capsule()
-                .fill(prominent ? ColorPrismTheme.accent.opacity(0.35) : Color.white.opacity(0.1))
+                .fill(prominent ? ColorPrismTheme.accent.opacity(0.35) : PrismTheme.wash.opacity(0.1))
         )
         #endif
         .help(help ?? title)

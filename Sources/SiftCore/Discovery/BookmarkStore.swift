@@ -154,7 +154,7 @@ public final class BookmarkStore: ObservableObject {
 
     public func removeAll() {
         folders = []
-        UserDefaults.standard.removeObject(forKey: defaultsKey)
+        SiftRuntime.defaults.removeObject(forKey: defaultsKey)
     }
 
     public func resolve(_ bookmark: FolderBookmark) throws -> URL {
@@ -217,12 +217,14 @@ public final class BookmarkStore: ObservableObject {
 
     #if os(macOS)
     @MainActor
-    public static func pickFolder() async -> URL? {
+    public static func pickFolder(startingAt directory: URL? = nil, message: String? = nil, prompt: String? = nil) async -> URL? {
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
-        panel.message = "Choose a folder to collect photos and videos"
+        panel.message = message ?? "Choose a folder to collect photos and videos"
+        if let prompt { panel.prompt = prompt }
+        if let directory { panel.directoryURL = directory }
         let response = await panel.begin()
         guard response == .OK, let url = panel.url else { return nil }
         return url
@@ -254,17 +256,24 @@ public final class BookmarkStore: ObservableObject {
         guard response == .OK, let url = panel.url else { return nil }
         return url
     }
+    /// The person's real home folder. Inside the sandbox, `homeDirectoryForCurrentUser` is the app container.
+    nonisolated public static var userHome: URL {
+        if let entry = getpwuid(getuid()), let dir = entry.pointee.pw_dir {
+            return URL(fileURLWithPath: String(cString: dir), isDirectory: true)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser
+    }
     #endif
 
     private func load() {
-        guard let data = UserDefaults.standard.data(forKey: defaultsKey),
+        guard let data = SiftRuntime.defaults.data(forKey: defaultsKey),
               let decoded = try? JSONDecoder().decode([FolderBookmark].self, from: data) else { return }
         folders = decoded
     }
 
     private func persist() {
         if let data = try? JSONEncoder().encode(folders) {
-            UserDefaults.standard.set(data, forKey: defaultsKey)
+            SiftRuntime.defaults.set(data, forKey: defaultsKey)
         }
     }
 }

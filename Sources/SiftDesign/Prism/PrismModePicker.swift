@@ -16,7 +16,6 @@ public struct PrismModePicker: View {
         }
         .padding(4)
         .prismGlass(cornerRadius: 22, padding: 0)
-        .frame(maxWidth: 520)
     }
 
     private func modeButton(_ mode: AppMode) -> some View {
@@ -31,11 +30,12 @@ public struct PrismModePicker: View {
                     .font(.caption.weight(.semibold))
                 Text(mode.label)
                     .font(.subheadline.weight(isSelected ? .semibold : .medium))
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
             }
             .foregroundStyle(isSelected ? Color.white : PrismTheme.textSecondary)
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
-            .frame(maxWidth: .infinity)
             .background {
                 if isSelected {
                     Capsule(style: .continuous)

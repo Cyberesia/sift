@@ -6,6 +6,7 @@ struct AnalysisJob: Sendable {
     let fileURL: URL
     let kind: MediaKind
     let fileName: String
+    let fileSize: Int64?
 }
 
 /// Reads the catalog without pinning those rows in the interface context.
@@ -14,7 +15,7 @@ enum AnalysisJobQueue {
         let context = ModelContext(StratumSchema.modelContainer)
         context.autosaveEnabled = false
         var descriptor = FetchDescriptor<MediaAssetRecord>(
-            predicate: #Predicate { !$0.isAnalyzed }
+            predicate: #Predicate { !$0.isAnalyzed && !$0.isCloudOnly }
         )
         descriptor.fetchLimit = max(1, limit)
         return try context.fetch(descriptor).map {
@@ -22,7 +23,8 @@ enum AnalysisJobQueue {
                 id: $0.id,
                 fileURL: $0.fileURL,
                 kind: $0.kind,
-                fileName: $0.fileURL.lastPathComponent
+                fileName: $0.fileURL.lastPathComponent,
+                fileSize: $0.fileSize
             )
         }
     }

@@ -13,9 +13,6 @@ public struct PrismShellView: View {
     @ObservedObject private var indexStore: MediaIndexStore
     @ObservedObject private var jobCenter: BackgroundJobCenter
 
-    #if os(macOS)
-    @Environment(\.openSettings) private var openSettings
-    #endif
     @State private var hoveredLibraryAsset: MediaAssetSummary?
     @State private var showHelp = false
     @State private var clearLibraryHover: Task<Void, Never>?
@@ -138,6 +135,21 @@ public struct PrismShellView: View {
                 }
             }
         }
+        .overlay {
+            #if os(macOS)
+            if session.showSetup {
+                SetupWizardView(session: session)
+                    .transition(.opacity)
+                    .zIndex(500)
+            } else if session.showSettings {
+                SettingsView(session: session)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                    .zIndex(400)
+            }
+            #endif
+        }
+        .animation(PrismMotion.quick, value: session.showSettings)
+        .animation(PrismMotion.quick, value: session.showSetup)
         .frame(minWidth: 960, minHeight: 640)
         .tint(PrismTheme.accent)
         .onChange(of: session.selectedPipeline) { _, _ in
@@ -332,7 +344,7 @@ public struct PrismShellView: View {
             .prismClickable()
             #if os(macOS)
             Button {
-                openSettings()
+                session.openSettings()
             } label: {
                 Image(systemName: "gearshape")
                     .frame(width: 32, height: 32)
@@ -342,7 +354,7 @@ public struct PrismShellView: View {
             .prismClickable()
             #endif
         }
-        .frame(maxWidth: 590)
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     @ViewBuilder
@@ -354,9 +366,24 @@ public struct PrismShellView: View {
             organizeMode
         case .library:
             libraryMode
+        case .rules:
+            rulesMode
         case .review:
             reviewMode
         }
+    }
+
+    private var rulesMode: some View {
+        FolderRulesWorkspaceView(
+            engine: session.folderRules,
+            intelligence: session.intelligence,
+            folders: session.bookmarkStore.folders,
+            destinations: destinationStore.destinations,
+            onAddWatchedFolder: { await session.addWatchedFolderForRule() },
+            onAddDestination: { await session.addDestinationForRule() },
+            onOpenSettings: { session.openSettings(.reading) },
+            onReveal: session.revealInFinder
+        )
     }
 
     private var sourcesMode: some View {
@@ -696,8 +723,7 @@ public struct PrismShellView: View {
 
     private func openSources() {
         #if os(macOS)
-        openSettings()
-        session.appMode = .sources
+        session.openSettings(.folders)
         #endif
     }
 }

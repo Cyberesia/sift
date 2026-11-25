@@ -9,11 +9,11 @@ public struct ExtractedPalette: Sendable, Equatable {
     public var secondary: Color
     public var accent: Color
 
-    public static let defaultPalette = ExtractedPalette(
+    public static var defaultPalette: ExtractedPalette { ExtractedPalette(
         primary: PrismTheme.surface,
         secondary: PrismTheme.dominantMid,
         accent: PrismTheme.accent
-    )
+    ) }
 
     /// Blends a photo-derived palette with the calm default so the UI never floods red/orange.
     public func tempered(blend photoWeight: CGFloat = 0.22) -> ExtractedPalette {

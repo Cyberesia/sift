@@ -7,6 +7,32 @@ Le détail anglais est dans [CHANGELOG.md](./CHANGELOG.md).
 
 ## [Non publié]
 
+### Ajouté
+
+- **Règles, deuxième version.** Les règles se lisent comme un court bloc, une ligne colorée par partie (quand, lecture, nom, rangement, étiquettes), dans une seule taille de texte. Elles sont vérifiées de haut en bas et seule la première qui convient agit sur un fichier. Nouvelles étapes : étiquettes Finder, et libérer l’espace une fois dans iCloud Drive. Nouveaux modèles : contrats, fiches de paie, relevés bancaires et grosses vidéos. À valider et Historique remplacent En attente et Activité.
+- **Configuration au premier lancement** : langue et apparence, dossiers à cataloguer en un clic, une destination, qui lit les fichiers (Sift, Apple Intelligence, modèle local ou d’entreprise, Claude), des règles prêtes pour Téléchargements, et une page de démarrage vers les tâches principales.
+- **Skins et apparence** : Citadel, Ocean, Forest, Dune, Orchid et Graphite ; clair, sombre ou comme le Mac ; quatre tailles d’interface.
+- **Réglage de langue** : comme le Mac, anglais ou français. Configuration, Réglages, Règles, noms des modes et aide sont traduits.
+
+- **Règles.** Des automatisations de dossier écrites comme une phrase : surveiller un dossier, vérifier nom, type ou taille, lire le fichier pour confirmer ce qu’il est et noter des valeurs, puis le renommer d’après un modèle et le ranger dans un sous-dossier comme `Invoices/{year}`. Modèles prêts, ou décrire la règle pour que le lecteur choisi la rédige. Un aperçu montre où irait chaque fichier avant d’allumer la règle. Les règles démarrent éteintes, peuvent attendre votre accord (Waiting) ou ranger tout de suite, et chaque déplacement est dans Activity avec Annuler. Les téléchargements en cours sont laissés tranquilles jusqu’à ce que leur taille se stabilise.
+- **Qui lit les fichiers pour les règles**, dans les Réglages : la lecture de Sift sur l’appareil (par défaut), Apple Intelligence (macOS 26), un modèle local via Ollama, LM Studio, `mlx_lm.server` ou llama.cpp, Claude avec votre clé API Anthropic, ou Jev. Les clés sont dans le trousseau. La phrase de la règle et la barre de menus nomment le lecteur et disent si du texte quitte le Mac.
+- **Mode démo** (`-siftDemo YES`) : réglages, catalogue, miniatures et règles séparés, pour que les vidéos ne montrent jamais de vrais fichiers.
+- La barre de menus affiche les règles allumées et les fichiers en attente.
+
+### Modifié
+
+- Les Réglages s’ouvrent par-dessus la fenêtre, avec une barre latérale et un bouton Retour, au lieu d’une petite fenêtre séparée.
+- Les scans entrent au catalogue par lots de 500 au lieu de garder tous les fichiers en mémoire. Le contrôle d’exclusion se fait une fois par dossier.
+- Le travail de fond suit la fenêtre : priorité utilisateur au premier plan ; cœurs efficacité, rythme espacé et pauses (chaleur, Économie d’énergie, mémoire) quand seule la barre de menus est ouverte.
+- Les lecteurs de contenu respectent un budget mémoire par fichier (5 % de la RAM, au plus la moitié de la mémoire libre, 64 Mo à 1 Go).
+- Les changements de dossier arrivés pendant un scan sont mis en file au lieu d’être perdus, et une rafale de plus de 400 changements est traitée par morceaux.
+
+### Corrigé
+
+- Les noms des modes ne passent plus à la ligne (Bibliothèque).
+- Le rail du notch est lisible en mode clair et suit le choix clair ou sombre de Sift.
+- L’indexation pouvait télécharger tous les fichiers d’iCloud Drive pour les aperçus, Vision, CLIP ou la lecture des documents. Les fichiers restés dans iCloud sont maintenant catalogués d’après leurs métadonnées et laissés dans le cloud.
+
 ## [0.1.4] - 2026-09-25
 
 ### Ajouté

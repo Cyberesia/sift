@@ -8,6 +8,8 @@ public final class MediaIndexStore: ObservableObject {
 
     @Published public private(set) var assetCount: Int = 0
     @Published public private(set) var analyzedCount: Int = 0
+    /// Cataloged from metadata only; their contents stay in iCloud.
+    @Published public private(set) var cloudOnlyCount: Int = 0
 
     public init(container: ModelContainer? = nil) {
         self.context = ModelContext(container ?? StratumSchema.modelContainer)
@@ -21,6 +23,9 @@ public final class MediaIndexStore: ObservableObject {
             predicate: #Predicate { $0.isAnalyzed }
         )
         analyzedCount = (try? context.fetchCount(analyzedDescriptor)) ?? 0
+        cloudOnlyCount = (try? context.fetchCount(
+            FetchDescriptor<MediaAssetRecord>(predicate: #Predicate { $0.isCloudOnly })
+        )) ?? 0
     }
 
     public func fetchSources() throws -> [IndexedSource] {
@@ -195,13 +200,19 @@ public final class MediaIndexStore: ObservableObject {
     }
 
     public func upsertDiscovered(_ items: [DiscoveredMedia]) throws -> Int {
+        guard !items.isEmpty else { return 0 }
+        // One fetch per batch instead of one per file: a 2 TB scan sends thousands of batches.
+        let ids = items.map(\.id)
+        let descriptor = FetchDescriptor<MediaAssetRecord>(
+            predicate: #Predicate { ids.contains($0.id) }
+        )
+        var existingByID: [String: MediaAssetRecord] = [:]
+        for record in try context.fetch(descriptor) {
+            existingByID[record.id] = record
+        }
         var inserted = 0
         for item in items {
-            let itemID = item.id
-            let descriptor = FetchDescriptor<MediaAssetRecord>(
-                predicate: #Predicate { $0.id == itemID }
-            )
-            if let existing = try context.fetch(descriptor).first {
+            if let existing = existingByID[item.id] {
                 if existing.contentHash != item.contentHash {
                     existing.contentHash = item.contentHash
                     existing.modifiedAt = item.modifiedAt
@@ -209,6 +220,9 @@ public final class MediaIndexStore: ObservableObject {
                     existing.clipEmbeddingData = nil
                     existing.clipModelVersion = nil
                     existing.clipContentHash = nil
+                }
+                if existing.isCloudOnly != item.isCloudOnly {
+                    existing.isCloudOnly = item.isCloudOnly
                 }
                 continue
             }
@@ -232,7 +246,9 @@ public final class MediaIndexStore: ObservableObject {
             )
             record.fileExtension = EvidenceCard.fileExtension(of: item.url)
             record.uti = EvidenceCard.uti(forExtension: record.fileExtension)
+            record.isCloudOnly = item.isCloudOnly
             context.insert(record)
+            existingByID[item.id] = record
             inserted += 1
         }
         try context.save()
@@ -329,7 +345,7 @@ public final class MediaIndexStore: ObservableObject {
         let document = MediaKind.document.rawValue
         return try context.fetchCount(
             FetchDescriptor<MediaAssetRecord>(
-                predicate: #Predicate { $0.thumbnailPath == nil && $0.kindRaw != document }
+                predicate: #Predicate { $0.thumbnailPath == nil && $0.kindRaw != document && !$0.isCloudOnly }
             )
         )
     }
@@ -337,7 +353,7 @@ public final class MediaIndexStore: ObservableObject {
     public func fetchThumbnailPending(offset: Int = 0, limit: Int = 40) throws -> [MediaAssetRecord] {
         let document = MediaKind.document.rawValue
         var descriptor = FetchDescriptor<MediaAssetRecord>(
-            predicate: #Predicate { $0.thumbnailPath == nil && $0.kindRaw != document }
+            predicate: #Predicate { $0.thumbnailPath == nil && $0.kindRaw != document && !$0.isCloudOnly }
         )
         descriptor.fetchOffset = max(0, offset)
         descriptor.fetchLimit = max(1, limit)
@@ -346,7 +362,7 @@ public final class MediaIndexStore: ObservableObject {
 
     public func fetchUnanalyzed(limit: Int = 32) throws -> [MediaAssetRecord] {
         var descriptor = FetchDescriptor<MediaAssetRecord>(
-            predicate: #Predicate { !$0.isAnalyzed }
+            predicate: #Predicate { !$0.isAnalyzed && !$0.isCloudOnly }
         )
         descriptor.fetchLimit = max(1, limit)
         return try context.fetch(descriptor)
@@ -582,10 +598,10 @@ public final class MediaIndexStore: ObservableObject {
     }
 
     public func rejectCollection(id: String) throws {
-        var dismissed = UserDefaults.standard.stringArray(forKey: "sift.dismissedCollectionIDs") ?? []
+        var dismissed = SiftRuntime.defaults.stringArray(forKey: "sift.dismissedCollectionIDs") ?? []
         if !dismissed.contains(id) {
             dismissed.append(id)
-            UserDefaults.standard.set(dismissed, forKey: "sift.dismissedCollectionIDs")
+            SiftRuntime.defaults.set(dismissed, forKey: "sift.dismissedCollectionIDs")
         }
         let targetID = id
         let descriptor = FetchDescriptor<StratumCollectionRecord>(
@@ -731,7 +747,7 @@ public final class MediaIndexStore: ObservableObject {
 
     public func unanalyzedCount() throws -> Int {
         try context.fetchCount(
-            FetchDescriptor<MediaAssetRecord>(predicate: #Predicate { !$0.isAnalyzed })
+            FetchDescriptor<MediaAssetRecord>(predicate: #Predicate { !$0.isAnalyzed && !$0.isCloudOnly })
         )
     }
 
@@ -758,7 +774,7 @@ public final class MediaIndexStore: ObservableObject {
 
     /// Drops suggested person cards that have no linked photos, then returns one group per saved face cluster.
     public func personReviewGroups() throws -> [PersonReviewGroup] {
-        let dismissed = Set(UserDefaults.standard.stringArray(forKey: "sift.dismissedCollectionIDs") ?? [])
+        let dismissed = Set(SiftRuntime.defaults.stringArray(forKey: "sift.dismissedCollectionIDs") ?? [])
         let descriptor = FetchDescriptor<MediaAssetRecord>(
             predicate: #Predicate { $0.personClusterID != nil }
         )

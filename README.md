@@ -53,6 +53,20 @@ Files stay where they are until you say otherwise.
 
 </details>
 
+<p align="center">
+  <a href="https://assets.aisance.cloud/sift/sift-demo.mp4?v=2"><img src="https://assets.aisance.cloud/sift/sift-demo-poster.jpg?v=2" alt="Sift demo video" width="820"></a>
+  <br/>
+  <sub>▶ <a href="https://assets.aisance.cloud/sift/sift-demo.mp4?v=2">Watch the 1:46 tour: setup, scanning, the library, a folder rule, and settings.</a></sub>
+</p>
+
+| First run | Reading files | Library |
+| :--: | :--: | :--: |
+| <img src="https://assets.aisance.cloud/sift/screens/setup-welcome.jpg?v=2" width="270" alt="First run"> | <img src="https://assets.aisance.cloud/sift/screens/setup-reading.jpg?v=2" width="270" alt="Reading files"> | <img src="https://assets.aisance.cloud/sift/screens/library-photos.jpg?v=2" width="270" alt="Library"> |
+| **Folder rules** | **Settings** | |
+| <img src="https://assets.aisance.cloud/sift/screens/rules.jpg?v=2" width="270" alt="Folder rules"> | <img src="https://assets.aisance.cloud/sift/screens/settings.jpg?v=2" width="270" alt="Settings"> | |
+
+<sub>Demo photos from Unsplash, credited in [docs/demo-credits.md](./docs/demo-credits.md). No real files appear in the video.</sub>
+
 ## 👋🏻 Getting started
 
 Sift is a macOS app for people who want a searchable catalog without a silent rearrange of their disk. Photos, video, music, and selected documents are indexed where they already live. An organization plan is a preview. Nothing is copied or moved until you approve it.
@@ -71,6 +85,14 @@ Understanding runs on device: Apple Vision, and a bundled CLIP model for visual 
 <br/>
 
 ## ✨ Features
+
+### First run
+
+A six-step setup opens on first launch: language and look, the folders to catalog (Pictures, Downloads, Desktop… one click each), the one folder tidied files go into, who reads files for rules, ready-made rules for Downloads, then a start page. Every step can be skipped; run it again from Settings.
+
+### Appearance and language
+
+Six skins (Citadel, Ocean, Forest, Dune, Orchid, Graphite), light, dark or same as the Mac, and four interface sizes. The interface speaks English and French; screens not yet translated stay in English, and [translations are welcome](./CONTRIBUTING.md#translations). Settings open over the window with a sidebar and a Back button.
 
 ### Discover
 
@@ -99,6 +121,32 @@ Three steps, and nothing happens until the last button.
 3. **Review** — waiting files, files already inside the folder, and originals that still have a copy are counted separately.
 
 You can turn on the empty folders to create (Photos, Videos, Music & Audio, and the others) before any file moves. Recent transfers can be undone from Settings when the original path is still available.
+
+### Rules
+
+A rule reads as a short block, one coloured line per part: *when a new file arrives in **Downloads** and **it’s a PDF***; ***Sift** reads it to check it’s **an invoice or receipt** and notes **vendor**, **date**, **amount***; *rename it to **{vendor} {date}***; *put it in **Sorted › Invoices › {year}***. Click a coloured value to change it. Add a condition or a step for more, including Finder tags and freeing up space once a file is in iCloud Drive.
+
+Starting points cover invoices, contracts, payslips, bank statements, screenshots, installers and large videos; every rule can be edited, reordered or deleted, and you can describe your own. Rules are checked top to bottom and only the first that fits a file acts on it. Before you switch a rule on, Sift lists the files already in the folder and what would happen to each. New matches wait in **To review**, or are filed on their own; **History** lists every change with Undo. Rules run while Sift is open, including from the menu bar with the window closed.
+
+Who reads the files is your choice, in Settings › Who reads files for rules:
+
+| Reader | Where the text goes |
+| :-- | :-- |
+| Sift on this Mac (default) | Nowhere. Keywords, dates and amounts found by Sift itself |
+| Apple Intelligence | Nowhere. Apple’s on-device model, macOS 26 |
+| Local model: Ollama, LM Studio, MLX (`mlx_lm.server`), llama.cpp | Your server. On `localhost`, nowhere |
+| Claude, with your Anthropic API key | Anthropic: the file name and up to 6,000 characters of its opening text |
+| Jev | Jev: the yes/no check only |
+
+The rule sentence always names the reader, with a lock when nothing leaves the Mac. If the chosen reader is not set up, or fails, Sift reads the file itself and says so; a rule set to file right away then waits for you instead.
+
+### Large libraries and iCloud
+
+Sift never downloads a file from iCloud Drive to look at it. Placeholders (iCloud Drive, Optimize Mac Storage, other cloud folders) are cataloged from their name, size and dates only, and marked as in iCloud. Previews, Vision, CLIP, documents and rules wait until the file is on the Mac. A process-wide switch backs this up: a read that would download a placeholder fails instead.
+
+Scans stream: files are written to the catalog 500 at a time, so a 2 TB disk never sits in memory as one list. A batch holds metadata only, about 1 KB per file, whatever the file’s size. Readers that load contents are held to a memory budget: 5 % of RAM, at most half of what is free, between 64 MB and 1 GB per file. Videos and audio are read in small pieces and are never costed at their full size.
+
+With the window in front, Sift works at full speed. With only the menu bar, it moves to the efficiency cores, paces itself between files, and pauses while the Mac is warm, on Low Power Mode, or short on memory. Folder changes that arrive during a scan are queued, not dropped.
 
 ### Notch
 
@@ -176,6 +224,8 @@ Indexing, Vision, CLIP, and document reading run on this Mac.
 | Opening lines, headings, sheet names, and column headers | Only while indexing, if a Jev key is saved |
 | Document tags, filenames, and a search query | Only if you saved a Jev key and press Return |
 | CLIP / Vision labels | Used locally. A short label list may be included in that same Return question |
+| Opening text of a file a rule reads | Only if you picked Claude, Jev, or a model on another machine as the rules reader |
+| Files in iCloud only | Never downloaded by Sift. Cataloged from metadata |
 
 No key, or a low-confidence answer, keeps the local result. Settings explains the same boundary.
 

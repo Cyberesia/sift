@@ -280,7 +280,7 @@ public struct ReorganizeWorkspaceView: View {
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.04)))
+        .background(RoundedRectangle(cornerRadius: 10).fill(PrismTheme.wash.opacity(0.04)))
     }
 
     private func transferChoice(_ option: FileTransferMode) -> some View {
@@ -300,11 +300,11 @@ public struct ReorganizeWorkspaceView: View {
             .frame(maxWidth: .infinity, minHeight: 92, alignment: .topLeading)
             .background(
                 RoundedRectangle(cornerRadius: 14)
-                    .fill(selected ? PrismTheme.accentSoft : Color.white.opacity(0.05))
+                    .fill(selected ? PrismTheme.accentSoft : PrismTheme.wash.opacity(0.05))
             )
             .overlay {
                 RoundedRectangle(cornerRadius: 14)
-                    .strokeBorder(selected ? PrismTheme.accent : Color.white.opacity(0.08), lineWidth: 1)
+                    .strokeBorder(selected ? PrismTheme.accent : PrismTheme.wash.opacity(0.08), lineWidth: 1)
             }
         }
         .buttonStyle(.plain)
@@ -341,7 +341,7 @@ public struct ReorganizeWorkspaceView: View {
             }
             .frame(maxWidth: .infinity, minHeight: 120)
             .padding(16)
-            .background(RoundedRectangle(cornerRadius: 18).fill(.white.opacity(enabled ? 0.1 : 0.04)))
+            .background(RoundedRectangle(cornerRadius: 18).fill(PrismTheme.wash.opacity(enabled ? 0.1 : 0.04)))
             .opacity(enabled ? 1 : 0.55)
         }
         .buttonStyle(.plain)

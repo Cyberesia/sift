@@ -213,7 +213,7 @@ public struct FolderSourcesPanel: View {
         .padding(.vertical, style == .settings ? 6 : 8)
         .background {
             if style == .shell || style == .embedded {
-                RoundedRectangle(cornerRadius: 10).fill(.white.opacity(0.06))
+                RoundedRectangle(cornerRadius: 10).fill(PrismTheme.wash.opacity(0.06))
             }
         }
     }
@@ -265,7 +265,7 @@ public struct FolderSourcesPanel: View {
                             }
                             .padding(.horizontal, 9)
                             .padding(.vertical, 4)
-                            .background(Capsule().fill(on ? PrismTheme.accentSoft : Color.white.opacity(0.05)))
+                            .background(Capsule().fill(on ? PrismTheme.accentSoft : PrismTheme.wash.opacity(0.05)))
                             .overlay(Capsule().strokeBorder(on ? PrismTheme.accent.opacity(0.6) : PrismTheme.borderSubtle, lineWidth: 1))
                             .foregroundStyle(on ? PrismTheme.textPrimary : PrismTheme.textTertiary)
                             .strikethrough(!on)
@@ -317,6 +317,6 @@ public struct FolderSourcesPanel: View {
     }
 
     private static func copy(_ en: String, _ fr: String) -> String {
-        Locale.current.language.languageCode?.identifier == "fr" ? fr : en
+        tr(en, fr)
     }
 }

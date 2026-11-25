@@ -11,6 +11,8 @@ public struct DiscoveredMedia: Sendable, Identifiable, Hashable {
     public let contentHash: String
     public let createdAt: Date?
     public let modifiedAt: Date?
+    /// Only a placeholder is on this Mac (iCloud Drive, Optimize Mac Storage). Cataloged from metadata only.
+    public let isCloudOnly: Bool
 
     public init(
         id: String,
@@ -21,7 +23,8 @@ public struct DiscoveredMedia: Sendable, Identifiable, Hashable {
         fileSize: Int64?,
         contentHash: String,
         createdAt: Date?,
-        modifiedAt: Date?
+        modifiedAt: Date?,
+        isCloudOnly: Bool = false
     ) {
         self.id = id
         self.url = url
@@ -32,5 +35,6 @@ public struct DiscoveredMedia: Sendable, Identifiable, Hashable {
         self.contentHash = contentHash
         self.createdAt = createdAt
         self.modifiedAt = modifiedAt
+        self.isCloudOnly = isCloudOnly
     }
 }

@@ -8,6 +8,8 @@ import AppKit
 
 /// Bezel-welded icon rail. Hovering an icon opens one card inward; the rail stays put.
 public struct SiftIslandView: View {
+    /// The rail lives in its own panel, so it follows the skin by observing the store itself.
+    @ObservedObject private var appearance = PrismAppearanceStore.shared
     @ObservedObject var jobs: BackgroundJobCenter
     @ObservedObject var chrome: NotchChrome
     let onOpenMode: (AppMode) -> Void
@@ -131,9 +133,9 @@ public struct SiftIslandView: View {
                 Button(action: onQuit) {
                     Image(systemName: "power")
                         .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(Color.white.opacity(0.62))
+                        .foregroundStyle(PrismTheme.wash.opacity(0.62))
                         .frame(width: 20, height: 18)
-                        .background(Color.white.opacity(0.07), in: Circle())
+                        .background(PrismTheme.wash.opacity(0.07), in: Circle())
                 }
                 .buttonStyle(.plain)
                 .prismClickable()
@@ -176,11 +178,11 @@ public struct SiftIslandView: View {
             VStack(spacing: 2) {
                 ZStack {
                     Circle()
-                        .fill(active ? PrismTheme.accentSoft : Color.white.opacity(0.07))
+                        .fill(active ? PrismTheme.accentSoft : PrismTheme.wash.opacity(0.07))
                         .overlay {
                             Circle()
                                 .strokeBorder(
-                                    active ? PrismTheme.accent : Color.white.opacity(0.30),
+                                    active ? PrismTheme.accent : PrismTheme.wash.opacity(0.30),
                                     lineWidth: active ? 1.8 : 1
                                 )
                         }
@@ -194,11 +196,11 @@ public struct SiftIslandView: View {
                     }
                     Image(systemName: item.systemImage)
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(active ? PrismTheme.accentSecondary : Color.white)
+                        .foregroundStyle(active ? PrismTheme.accentSecondary : PrismTheme.textPrimary)
                 }
                 Text(chrome.caption(for: item, progressFraction: jobs.progress.fraction))
                     .font(.system(size: 9, weight: .medium, design: .rounded))
-                    .foregroundStyle(Color.white.opacity(0.82))
+                    .foregroundStyle(PrismTheme.wash.opacity(0.82))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             }
@@ -215,7 +217,7 @@ public struct SiftIslandView: View {
     private var dragGrip: some View {
         Image(systemName: "line.3.horizontal")
             .font(.system(size: 9, weight: .bold))
-            .foregroundStyle(Color.white.opacity(0.45))
+            .foregroundStyle(PrismTheme.wash.opacity(0.45))
             .frame(width: 28, height: 16)
             .contentShape(Rectangle())
             .gesture(
@@ -291,11 +293,11 @@ public struct SiftIslandView: View {
         case .index:
             Text(jobs.progress.subtitle.isEmpty ? jobs.progress.title : jobs.progress.subtitle)
                 .font(.caption)
-                .foregroundStyle(Color.white.opacity(0.7))
+                .foregroundStyle(PrismTheme.wash.opacity(0.7))
                 .lineLimit(2)
             Text("\(chrome.assetCount) found · \(chrome.skippedTrees) trees skipped")
                 .font(.caption2)
-                .foregroundStyle(Color.white.opacity(0.55))
+                .foregroundStyle(PrismTheme.wash.opacity(0.55))
             if let fraction = jobs.progress.fraction {
                 ProgressView(value: fraction)
                     .progressViewStyle(.linear)
@@ -311,7 +313,7 @@ public struct SiftIslandView: View {
                         .notchTooltip("Stop here and keep every file already cataloged.")
                 }
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(Color.white)
+                .foregroundStyle(PrismTheme.textPrimary)
                 .buttonStyle(.plain)
                 .prismClickable()
             }
@@ -336,7 +338,7 @@ public struct SiftIslandView: View {
             }
             Button("Entire Mac", action: onBrowseCatalog)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(Color.white)
+                .foregroundStyle(PrismTheme.textPrimary)
                 .buttonStyle(.plain)
                 .prismClickable()
         case .garden:
@@ -344,7 +346,7 @@ public struct SiftIslandView: View {
                  ? "CLIP on this Mac · \(chrome.clipEmbeddedCount) of \(chrome.photoCount + chrome.videoCount) embedded"
                  : "Vision labels + OCR · CLIP downloads on first launch")
                 .font(.caption)
-                .foregroundStyle(Color.white.opacity(0.7))
+                .foregroundStyle(PrismTheme.wash.opacity(0.7))
             Button("Open visual Garden", action: onOpenGarden)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(PrismTheme.accentSecondary)
@@ -353,24 +355,24 @@ public struct SiftIslandView: View {
         case .sources:
             Text(dropTargeted ? "Drop to add a folder" : "\(chrome.folderCount) roots · \(chrome.fullDiskAccess ? "Full Disk Access" : "Chosen folders")")
                 .font(.caption)
-                .foregroundStyle(Color.white.opacity(0.7))
+                .foregroundStyle(PrismTheme.wash.opacity(0.7))
         case .inbox:
             Text("\(chrome.inboxCount) still in source folders")
                 .font(.caption)
-                .foregroundStyle(Color.white.opacity(0.7))
+                .foregroundStyle(PrismTheme.wash.opacity(0.7))
         case .organize:
             Text("\(chrome.planCount) safe · \(chrome.blockedPlanCount) held in projects")
                 .font(.caption)
-                .foregroundStyle(Color.white.opacity(0.7))
+                .foregroundStyle(PrismTheme.wash.opacity(0.7))
             Button("Preview plan", action: onPreviewPlan)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(Color.white)
+                .foregroundStyle(PrismTheme.textPrimary)
                 .buttonStyle(.plain)
                 .prismClickable()
         case .review:
             Text("\(chrome.suggestionCount) suggestions to accept")
                 .font(.caption)
-                .foregroundStyle(Color.white.opacity(0.7))
+                .foregroundStyle(PrismTheme.wash.opacity(0.7))
             Button("Open review queue") { onOpenMode(.review) }
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(PrismTheme.accentSecondary)
@@ -379,7 +381,7 @@ public struct SiftIslandView: View {
         case .duplicates:
             Text(chrome.duplicateCount == 0 ? "Scan for duplicates" : "\(chrome.duplicateCount) groups")
                 .font(.caption)
-                .foregroundStyle(Color.white.opacity(0.7))
+                .foregroundStyle(PrismTheme.wash.opacity(0.7))
         case .search:
             searchBody
         }
@@ -396,7 +398,7 @@ public struct SiftIslandView: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
-        .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+        .background(PrismTheme.wash.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
     }
 
     private func statusColor(for item: NotchRailItem) -> Color {
@@ -414,14 +416,14 @@ public struct SiftIslandView: View {
             TextField("Search", text: $chrome.query)
                 .textFieldStyle(.plain)
                 .font(.caption)
-                .foregroundStyle(Color.white)
+                .foregroundStyle(PrismTheme.textPrimary)
                 .onSubmit { onSubmitSearch(chrome.query) }
                 .onChange(of: chrome.query) { _, query in
                     onQueryEdited(query)
                 }
             Button("Entire Mac", action: onBrowseCatalog)
                 .font(.caption2.weight(.semibold))
-                .foregroundStyle(Color.white.opacity(0.8))
+                .foregroundStyle(PrismTheme.wash.opacity(0.8))
                 .buttonStyle(.plain)
                 .prismClickable()
             if !chrome.query.isEmpty {
@@ -430,7 +432,7 @@ public struct SiftIslandView: View {
                     onClearSearch()
                 }
                 .font(.caption2)
-                .foregroundStyle(Color.white.opacity(0.55))
+                .foregroundStyle(PrismTheme.wash.opacity(0.55))
                 .buttonStyle(.plain)
                 .prismClickable()
             }
@@ -438,7 +440,7 @@ public struct SiftIslandView: View {
                 if chrome.hits.isEmpty {
                     Text("No matches")
                         .font(.caption2)
-                        .foregroundStyle(Color.white.opacity(0.55))
+                        .foregroundStyle(PrismTheme.wash.opacity(0.55))
                 }
                 ForEach(chrome.hits.prefix(4)) { asset in
                     Button {
@@ -450,7 +452,7 @@ public struct SiftIslandView: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 6))
                             Text(asset.fileName)
                                 .font(.caption2)
-                                .foregroundStyle(Color.white.opacity(0.85))
+                                .foregroundStyle(PrismTheme.wash.opacity(0.85))
                                 .lineLimit(1)
                             Spacer()
                             Image(systemName: "arrow.up.left.and.arrow.down.right")

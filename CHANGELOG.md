@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Rules, second version.** Rules read as a short block, one coloured line per part (when, read, rename, put in, tag), all in one type size. Rules are checked top to bottom and only the first that fits a file acts on it (reorder from the ⋯ menu). New steps: Finder tags, and freeing up space once a file is in iCloud Drive. New starting points: contracts, payslips, bank statements and large videos, next to invoices, screenshots and installers. To review and History replace Waiting and Activity.
+- **First-run setup**: language and look, folders to catalog with one-click suggestions, a destination, who reads files (Sift, Apple Intelligence, a local or company model, Claude), ready-made Downloads rules, and a start page linking the main tasks. Reopen it from Settings or Sift › Run Setup….
+- **Skins and appearance**: Citadel, Ocean, Forest, Dune, Orchid and Graphite; light, dark or same as the Mac; four interface sizes.
+- **Language setting**: same as the Mac, English or French. Setup, Settings, Rules, mode names and help are translated.
+- **Demo mode** (`-siftDemo YES` or `SIFT_DEMO=1`): its own settings, catalog, thumbnails and rules, so recordings never show real files.
+- Debug builds accept `-siftSetup YES`, `-siftSetupStep N`, `-siftSettings <page>` and `-siftMode <mode>` for screenshots.
+
+- **Rules.** Folder automations written as a sentence: watch a folder, check name, type or size, read the file to confirm what it is and note values, then rename it from a template and move it into a destination subfolder such as `Invoices/{year}`. Templates, or describe a rule and the chosen reader drafts it. A preview shows where every file would go before the rule is on. Rules start off, can wait for you (Waiting) or file right away, and every move is in Activity with Undo. Partial downloads are left alone until their size settles.
+- **Who reads files for rules**, in Settings: Sift’s own on-device reading (default), Apple Intelligence (macOS 26), a local model through Ollama, LM Studio, `mlx_lm.server` or llama.cpp, Claude with your Anthropic API key (structured output, refusal fallbacks), or Jev. Keys live in the keychain. The rule sentence and the menu bar name the reader and whether text leaves the Mac.
+- Menu bar shows rules that are on, and files waiting, with File and Review.
+
+### Changed
+
+- Settings open over the main window with a sidebar (General, Folders, Reading files, Organizing, Search, Updates, Maintenance) and a Back button, instead of a small separate window.
+- Scans stream into the catalog in batches of 500 instead of holding every file in memory, with one catalog fetch per batch. The exclusion check runs once per folder instead of walking up from every file.
+- Background work follows the window: user priority while Sift is in front; efficiency cores, pacing, and pauses for heat, Low Power Mode and memory pressure when only the menu bar is open. Vision no longer runs at user priority.
+- Readers that load contents are held to a per-file memory budget (5 % of RAM, at most half of free memory, 64 MB to 1 GB).
+- Folder events arriving during a scan are queued instead of dropped, and a burst of more than 400 changes is processed in chunks instead of truncated. FSEvents are handled off the main thread.
+
+### Fixed
+
+- Mode names no longer wrap (Bibliothèque in French).
+- The notch rail is readable in light mode and follows Sift's light or dark choice.
+- Indexing could download every iCloud Drive file to make previews, run Vision and CLIP, or read documents. Cloud-only files are now cataloged from metadata, marked, and left in iCloud, and the app refuses to materialize placeholders by reading them.
+
 ## [0.1.4] - 2026-09-25
 
 ### Added

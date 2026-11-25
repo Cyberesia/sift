@@ -11,12 +11,13 @@ public final class TransferJournal {
         self.context = store.modelContext
     }
 
+    @discardableResult
     public func record(
         assetID: String,
         sourcePath: String,
         destinationPath: String,
         mode: FileTransferMode
-    ) throws {
+    ) throws -> TransferRecord {
         let entry = TransferRecord(
             assetID: assetID,
             sourcePath: sourcePath,
@@ -25,6 +26,12 @@ public final class TransferJournal {
         )
         context.insert(entry)
         try context.save()
+        return entry
+    }
+
+    public func record(id: String) -> TransferRecord? {
+        let descriptor = FetchDescriptor<TransferRecord>(predicate: #Predicate { $0.id == id })
+        return try? context.fetch(descriptor).first
     }
 
     public func activeTransfers() throws -> [TransferRecord] {

@@ -48,3 +48,7 @@ Sources/SiftCore/Resources/CLIP/CLIP_TextEncoder.mlmodelc/weights/weight.bin
 *.dsa
 *.pem
 Scripts/signing.local.env
+
+# Launch video tooling stays local: scripts, the recording tour, and their output.
+Scripts/demo/
+Sources/SiftApp/Shell/SiftDemoTour.swift

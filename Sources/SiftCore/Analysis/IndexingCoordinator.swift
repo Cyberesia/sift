@@ -44,6 +44,13 @@ public final class IndexingCoordinator: ObservableObject {
     private let runControl = IndexingRunControl()
 
     private var activeTask: Task<Void, Never>?
+    private var scanInsertedThisFolder = 0
+    /// Watched-folder changes that arrived while a scan or analysis was running. Nothing is dropped.
+    private var deferredChanges: [String: (bookmark: FolderBookmark, paths: Set<String>)] = [:]
+    private var deferredDrainTask: Task<Void, Never>?
+    private let governor = ResourceGovernor.shared
+    /// Why background work is waiting (warm Mac, Low Power Mode, memory), shown in the dock.
+    @Published public private(set) var holdReason: String?
     /// Small progressive waves keep the grid useful while large catalogs load.
     private let thumbnailBatchSize = 40
 
@@ -247,44 +254,77 @@ public final class IndexingCoordinator: ObservableObject {
     /// A file changed inside a saved folder. Classifies those paths only.
     /// A full walk of Downloads is reserved for Look again.
     public func ingestChangedFiles(bookmarks: [FolderBookmark], paths: [String]) async {
-        guard !isRunning else { return }
+        guard !isRunning else {
+            deferChanges(bookmarks: bookmarks, paths: paths)
+            return
+        }
         let files = Array(Set(paths)).filter { path in
             var isDir: ObjCBool = false
             return FileManager.default.fileExists(atPath: path, isDirectory: &isDir) && !isDir.boolValue
-        }.prefix(400)
+        }
         guard !files.isEmpty else { return }
 
         activityDetail = "Checking \(files.count) changed files. The rest of the folder stays as cataloged."
         defer { activityDetail = "" }
 
-        var found: [DiscoveredMedia] = []
-        for bookmark in bookmarks {
-            let root: URL
-            do {
-                root = try bookmarkStore.resolve(bookmark).standardizedFileURL
-            } catch {
-                continue
-            }
-            let rootPath = root.path
-            let owned = files.filter { path in
-                let std = URL(fileURLWithPath: path).standardizedFileURL.path
-                return std == rootPath || std.hasPrefix(rootPath + "/")
-            }
-            guard !owned.isEmpty else { continue }
-            let batch: [DiscoveredMedia] = (try? bookmarkStore.withSecurityScopedAccess(bookmark) { _ in
-                owned.compactMap { path in
-                    scanner.classifyFile(at: URL(fileURLWithPath: path), sourceLabel: bookmark.displayName)
+        var changed = false
+        for chunkStart in stride(from: 0, to: files.count, by: 400) {
+            let chunk = Array(files[chunkStart..<min(chunkStart + 400, files.count)])
+            var found: [DiscoveredMedia] = []
+            for bookmark in bookmarks {
+                let root: URL
+                do {
+                    root = try bookmarkStore.resolve(bookmark).standardizedFileURL
+                } catch {
+                    continue
                 }
-            }) ?? []
-            found.append(contentsOf: batch)
+                let rootPath = root.path
+                let owned = chunk.filter { path in
+                    let std = URL(fileURLWithPath: path).standardizedFileURL.path
+                    return std == rootPath || std.hasPrefix(rootPath + "/")
+                }
+                guard !owned.isEmpty else { continue }
+                let batch: [DiscoveredMedia] = (try? bookmarkStore.withSecurityScopedAccess(bookmark) { _ in
+                    owned.compactMap { path in
+                        scanner.classifyFile(at: URL(fileURLWithPath: path), sourceLabel: bookmark.displayName)
+                    }
+                }) ?? []
+                found.append(contentsOf: batch)
+            }
+            guard !found.isEmpty else { continue }
+            do {
+                _ = try store.upsertDiscovered(found)
+                changed = true
+            } catch {
+                reportFailure(error.localizedDescription)
+                return
+            }
+            await Task.yield()
         }
-        guard !found.isEmpty else { return }
-        do {
-            _ = try store.upsertDiscovered(found)
+        if changed {
             store.refreshCounts()
             notifyLibraryChanged()
-        } catch {
-            reportFailure(error.localizedDescription)
+        }
+    }
+
+    private func deferChanges(bookmarks: [FolderBookmark], paths: [String]) {
+        for bookmark in bookmarks {
+            var entry = deferredChanges[bookmark.id] ?? (bookmark, [])
+            entry.paths.formUnion(paths)
+            deferredChanges[bookmark.id] = entry
+        }
+        guard deferredDrainTask == nil else { return }
+        deferredDrainTask = Task { [weak self] in
+            while let self, self.isRunning, !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(3))
+            }
+            guard let self, !Task.isCancelled else { return }
+            let pending = self.deferredChanges.values
+            self.deferredChanges = [:]
+            self.deferredDrainTask = nil
+            for entry in pending {
+                await self.ingestChangedFiles(bookmarks: [entry.bookmark], paths: Array(entry.paths))
+            }
         }
     }
 
@@ -327,21 +367,27 @@ public final class IndexingCoordinator: ObservableObject {
                 try await runControl.checkpoint()
 
                 let root = try bookmarkStore.resolve(bookmark)
-                let batch = try await bookmarkStore.withSecurityScopedAccessAsync(bookmark) { rootURL in
+                let store = self.store
+                let found = try await bookmarkStore.withSecurityScopedAccessAsync(bookmark) { rootURL in
                     phase = .scanning(folder: bookmark.displayName, filesFound: 0)
-                    return try await scanner.scanFolder(
+                    // Each batch is written to the catalog as it arrives, so a 2 TB walk never holds the
+                    // whole file list in memory and the library fills in while the scan runs.
+                    return try await scanner.scanFolderStreaming(
                         at: rootURL,
                         sourceLabel: bookmark.displayName,
                         includeSubfolders: bookmark.includeSubfolders,
                         includedSubfolderPaths: bookmark.includedSubfolderPaths,
                         runControl: runControl,
                         kinds: kinds,
-                        documentExtensions: documentExtensions
-                    ) { [weak self] count, _ in
-                        Task { @MainActor in
+                        documentExtensions: documentExtensions,
+                        progress: { [weak self] count, _ in
                             self?.phase = .scanning(folder: bookmark.displayName, filesFound: count)
+                        },
+                        onBatch: { batch in
+                            let added = try await MainActor.run { try store.upsertDiscovered(batch) }
+                            await self.noteInserted(added)
                         }
-                    }
+                    )
                 }
                 if !bookmark.includeSubfolders {
                     _ = try store.removeAssetsNotDirectlyInFolder(
@@ -349,10 +395,10 @@ public final class IndexingCoordinator: ObservableObject {
                         rootPath: root.path
                     )
                 }
-                if !batch.isEmpty {
-                    let added = try store.upsertDiscovered(batch)
-                    inserted += added
-                    lastScanInserted = added
+                if found > 0 {
+                    inserted += scanInsertedThisFolder
+                    lastScanInserted = scanInsertedThisFolder
+                    scanInsertedThisFolder = 0
                     store.refreshCounts()
                     notifyLibraryChanged()
                 }
@@ -398,12 +444,20 @@ public final class IndexingCoordinator: ObservableObject {
 
                 var jobs: [(id: String, source: URL)] = []
                 jobs.reserveCapacity(wave.count)
+                var cloudMarked = 0
                 for record in wave {
                     try await runControl.checkpoint()
+                    if record.sourceKindRaw != MediaSourceKind.photoLibrary.rawValue,
+                       CloudFileState.isDataless(record.fileURL) {
+                        record.isCloudOnly = true
+                        cloudMarked += 1
+                        continue
+                    }
                     if let source = await resolveThumbnailURL(record: record) {
                         jobs.append((record.id, source))
                     }
                 }
+                try await pace()
 
                 let completed = await withTaskGroup(
                     of: (String, String?).self,
@@ -429,9 +483,12 @@ public final class IndexingCoordinator: ObservableObject {
                 let paths = Dictionary(uniqueKeysWithValues: completed.compactMap { id, path in
                     path.map { (id, $0) }
                 })
-                failedCount += wave.count - paths.count
+                // Cloud-only files leave the pending query once saved, so they do not shift the offset.
+                failedCount += wave.count - paths.count - cloudMarked
                 if !paths.isEmpty {
                     try? store.setThumbnailPaths(paths)
+                } else if cloudMarked > 0 {
+                    try? store.flush()
                 }
                 completedCount += wave.count
                 phase = .thumbnailing(
@@ -470,13 +527,31 @@ public final class IndexingCoordinator: ObservableObject {
                 var savedPhotos = false
                 for job in jobs {
                     try await runControl.checkpoint()
+                    try await pace()
                     finished += 1
                     if finished == 1 || finished == total || finished.isMultiple(of: 6) {
                         phase = .analyzing(current: finished, total: total, fileName: job.fileName)
                     }
+                    if job.fileURL.isFileURL, CloudFileState.isDataless(job.fileURL) {
+                        // Evicted to iCloud since the scan. Reading it would download it.
+                        markCloudOnly(assetID: job.id)
+                        continue
+                    }
+                    if job.fileURL.isFileURL, !governor.admitsRead(
+                        kind: job.kind,
+                        fileSize: job.fileSize,
+                        fileExtension: job.fileURL.pathExtension
+                    ) {
+                        Self.log.info("Skipped reading \(job.fileName, privacy: .public): larger than the memory budget")
+                        if let record = try? store.fetchAsset(id: job.id) {
+                            try? markAnalysisSkipped(record: record)
+                        }
+                        continue
+                    }
+                    let priority = governor.analysisPriority
                     do {
                         if job.kind == .document {
-                            try await Task.detached(priority: .utility) {
+                            try await Task.detached(priority: priority) {
                                 try await DocumentAnalysisWriter.readAndSave(id: job.id, url: job.fileURL)
                             }.value
                         } else if let record = try store.fetchAsset(id: job.id) {
@@ -546,8 +621,9 @@ public final class IndexingCoordinator: ObservableObject {
                     if finished == 1 || finished.isMultiple(of: 5) || finished == total {
                         phase = .embedding(current: finished, total: total, fileName: job.name)
                     }
+                    try await pace()
                     let path = job.path
-                    let vector = try? await Task.detached(priority: .utility) {
+                    let vector = try? await Task.detached(priority: governor.analysisPriority) {
                         guard let image = SafeImageLoader.loadForAnalysis(
                             from: URL(fileURLWithPath: path),
                             maxPixelSize: 224
@@ -573,6 +649,28 @@ public final class IndexingCoordinator: ObservableObject {
         onLibraryChanged?()
     }
 
+    private func noteInserted(_ count: Int) {
+        guard count > 0 else { return }
+        scanInsertedThisFolder += count
+        notifyLibraryChanged()
+    }
+
+    /// Waits out a warm Mac, Low Power Mode in the background, or memory pressure, then paces the next file.
+    private func pace() async throws {
+        try await governor.waitWhileHeld { [weak self] hold in
+            Task { @MainActor in self?.holdReason = hold.rawValue }
+        }
+        if holdReason != nil { holdReason = nil }
+        let delay = governor.interItemDelay
+        if delay > .zero { try await Task.sleep(for: delay) }
+    }
+
+    /// Marks a file whose contents are only in iCloud so no reader asks macOS to download it.
+    private func markCloudOnly(assetID: String) {
+        guard let record = try? store.fetchAsset(id: assetID) else { return }
+        record.isCloudOnly = true
+    }
+
     /// Lets a click, including opening a photo, paint before the next file is read.
     private func pumpMainRunLoop() async {
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
@@ -586,7 +684,7 @@ public final class IndexingCoordinator: ObservableObject {
         if record.kind == .document {
             let fileURL = record.fileURL
             let assetID = record.id
-            try await Task.detached(priority: .utility) {
+            try await Task.detached(priority: governor.analysisPriority) {
                 try await DocumentAnalysisWriter.readAndSave(id: assetID, url: fileURL)
             }.value
             return
@@ -622,7 +720,7 @@ public final class IndexingCoordinator: ObservableObject {
                 captureDate: header?.captureDate
             )
             let vision = analyzer
-            result = try await Task.detached(priority: .userInitiated) {
+            result = try await Task.detached(priority: governor.analysisPriority) {
                 try await vision.analyzeImage(cgImage, metadata: metadata)
             }.value
         }

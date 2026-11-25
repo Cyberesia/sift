@@ -13,10 +13,7 @@ public enum LibraryResetCoordinator {
         guard library || settings else { return }
         if library {
             try indexStore.wipeCatalog()
-            let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            if let thumbs = support?.appendingPathComponent("Sift/thumbnails", isDirectory: true) {
-                try? FileManager.default.removeItem(at: thumbs)
-            }
+            try? FileManager.default.removeItem(at: SiftRuntime.supportDirectory.appendingPathComponent("thumbnails", isDirectory: true))
         }
         if settings {
             bookmarkStore.removeAll()
@@ -38,7 +35,7 @@ public enum LibraryResetCoordinator {
                 "sift.skipAITaggingPrompt",
             ]
             for key in keys {
-                UserDefaults.standard.removeObject(forKey: key)
+                SiftRuntime.defaults.removeObject(forKey: key)
             }
         }
     }

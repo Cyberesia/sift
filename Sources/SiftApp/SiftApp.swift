@@ -15,10 +15,15 @@ struct SiftApplication: App {
     var body: some Scene {
         WindowGroup {
             PrismShellView(session: session)
-                .preferredColorScheme(.dark)
+                .prismAppearance()
         }
         .defaultSize(width: 1200, height: 780)
         .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button(tr("Settings…", "Réglages…")) { session.openSettings() }
+                    .keyboardShortcut(",", modifiers: .command)
+                Button(tr("Run Setup…", "Configuration…")) { session.openSetup() }
+            }
             CommandGroup(after: .newItem) {
                 Button("Add Folder…") {
                     Task { await session.addFolder() }
@@ -40,10 +45,6 @@ struct SiftApplication: App {
                 }
                 .keyboardShortcut("k", modifiers: .command)
             }
-        }
-
-        Settings {
-            SettingsView(session: session)
         }
 
         MenuBarExtra("Sift", systemImage: "sparkles.rectangle.stack") {
@@ -87,7 +88,11 @@ struct SettingsView: View {
             onFactoryReset: { library, settings in
                 session.performFactoryReset(library: library, settings: settings)
                 refreshTransfers()
-            }
+            },
+            intelligence: session.intelligence,
+            initialPage: session.settingsPage,
+            onClose: { session.showSettings = false },
+            onRunSetup: { session.openSetup() }
         )
         .onAppear(perform: refreshTransfers)
     }

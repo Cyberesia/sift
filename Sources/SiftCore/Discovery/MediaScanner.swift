@@ -8,6 +8,54 @@ public struct MediaScanner: Sendable {
         self.exclusionPolicy = exclusionPolicy
     }
 
+    /// Files are sent to `onBatch` every `batchSize` entries, so memory stays flat however large the tree is.
+    /// A batch holds metadata only (path, size, dates): about 1 KB per file, even for a 4 GB video.
+    public static let defaultBatchSize = 500
+
+    private static let resourceKeys: Set<URLResourceKey> = [
+        .isRegularFileKey,
+        .isDirectoryKey,
+        .contentModificationDateKey,
+        .creationDateKey,
+        .fileSizeKey,
+        .contentTypeKey,
+    ]
+
+    /// Walks a folder and streams what it finds. Returns the number of files sent.
+    @discardableResult
+    public func scanFolderStreaming(
+        at root: URL,
+        sourceLabel: String,
+        includeSubfolders: Bool = true,
+        includedSubfolderPaths: [String]? = nil,
+        runControl: IndexingRunControl? = nil,
+        kinds: Set<MediaKind> = Set(MediaKind.allCases),
+        documentExtensions: Set<String> = DocumentFormats.extensions,
+        batchSize: Int = MediaScanner.defaultBatchSize,
+        priority: TaskPriority = ResourceGovernor.shared.scanPriority,
+        progress: (@Sendable @MainActor (Int, String) -> Void)? = nil,
+        onBatch: @escaping @Sendable ([DiscoveredMedia]) async throws -> Void
+    ) async throws -> Int {
+        let allowed = kinds.isEmpty ? Set(MediaKind.allCases) : kinds
+        let extensions = documentExtensions.isEmpty ? DocumentFormats.extensions : documentExtensions
+        let size = max(1, batchSize)
+        return try await Task.detached(priority: priority) { [runControl] in
+            try await self.walk(
+                root: root,
+                sourceLabel: sourceLabel,
+                includeSubfolders: includeSubfolders,
+                includedSubfolderPaths: includedSubfolderPaths,
+                runControl: runControl,
+                kinds: allowed,
+                documentExtensions: extensions,
+                batchSize: size,
+                progress: progress,
+                onBatch: onBatch
+            )
+        }.value
+    }
+
+    /// Collects every file in memory. Fine for a folder; use `scanFolderStreaming` for a whole disk.
     public func scanFolder(
         at root: URL,
         sourceLabel: String,
@@ -18,249 +66,183 @@ public struct MediaScanner: Sendable {
         documentExtensions: Set<String> = DocumentFormats.extensions,
         progress: (@Sendable @MainActor (Int, String) -> Void)? = nil
     ) async throws -> [DiscoveredMedia] {
-        let allowed = kinds.isEmpty ? Set(MediaKind.allCases) : kinds
-        let extensions = documentExtensions.isEmpty ? DocumentFormats.extensions : documentExtensions
-        return try await Task.detached(priority: .userInitiated) { [runControl] in
-            try await self.scanFolderWhileAccessActive(
-                at: root,
-                sourceLabel: sourceLabel,
-                includeSubfolders: includeSubfolders,
-                includedSubfolderPaths: includedSubfolderPaths,
-                runControl: runControl,
-                kinds: allowed,
-                documentExtensions: extensions,
-                progress: progress
-            )
-        }.value
+        let collector = BatchCollector()
+        try await scanFolderStreaming(
+            at: root,
+            sourceLabel: sourceLabel,
+            includeSubfolders: includeSubfolders,
+            includedSubfolderPaths: includedSubfolderPaths,
+            runControl: runControl,
+            kinds: kinds,
+            documentExtensions: documentExtensions,
+            progress: progress
+        ) { batch in
+            await collector.append(batch)
+        }
+        return await collector.items
     }
 
-    private func scanFolderWhileAccessActive(
-        at root: URL,
+    public func scanFolder(at root: URL, sourceLabel: String, includeSubfolders: Bool = true) throws -> [DiscoveredMedia] {
+        if exclusionPolicy.isBlockedSource(root) != nil { return [] }
+        var results: [DiscoveredMedia] = []
+        try forEachCandidate(root: root, includeSubfolders: includeSubfolders, includedSubfolderPaths: nil) { fileURL, values in
+            if let media = makeMedia(fileURL, values: values, sourceLabel: sourceLabel, kinds: Set(MediaKind.allCases), documentExtensions: DocumentFormats.extensions) {
+                results.append(media)
+            }
+            return true
+        }
+        return results
+    }
+
+    private func walk(
+        root: URL,
         sourceLabel: String,
         includeSubfolders: Bool,
         includedSubfolderPaths: [String]?,
         runControl: IndexingRunControl?,
         kinds: Set<MediaKind>,
         documentExtensions: Set<String>,
-        progress: (@Sendable @MainActor (Int, String) -> Void)?
-    ) async throws -> [DiscoveredMedia] {
-        if !includeSubfolders {
-            return try await scanFolderRootOnly(
+        batchSize: Int,
+        progress: (@Sendable @MainActor (Int, String) -> Void)?,
+        onBatch: @Sendable ([DiscoveredMedia]) async throws -> Void
+    ) async throws -> Int {
+        // The folder itself is checked once. Excluded trees below it are skipped as the walk meets them,
+        // so no file walks back up to "/" looking for a .git marker.
+        if exclusionPolicy.isBlockedSource(root) != nil { return 0 }
+
+        var batch: [DiscoveredMedia] = []
+        batch.reserveCapacity(batchSize)
+        var sent = 0
+        var seen = 0
+        var lastName = root.lastPathComponent
+
+        let urls: AnySequence<URL>
+        let enumerator: FileManager.DirectoryEnumerator?
+        if includeSubfolders {
+            enumerator = FileManager.default.enumerator(
                 at: root,
-                sourceLabel: sourceLabel,
-                runControl: runControl,
-                kinds: kinds,
-                documentExtensions: documentExtensions,
-                progress: progress
+                includingPropertiesForKeys: Array(Self.resourceKeys),
+                options: [.skipsHiddenFiles, .skipsPackageDescendants]
             )
-        }
-        let keys: Set<URLResourceKey> = [
-            .isRegularFileKey,
-            .contentModificationDateKey,
-            .creationDateKey,
-            .fileSizeKey,
-            .contentTypeKey,
-        ]
-        guard let enumerator = FileManager.default.enumerator(
-            at: root,
-            includingPropertiesForKeys: Array(keys),
-            options: [.skipsHiddenFiles, .skipsPackageDescendants]
-        ) else { return [] }
-
-        var results: [DiscoveredMedia] = []
-        var filesSeen = 0
-
-        while let element = enumerator.nextObject() {
-            try Task.checkCancellation()
-            if let runControl {
-                try await runControl.checkpoint()
-                guard await runControl.shouldContinueScan() else { break }
-            }
-
-            guard let fileURL = element as? URL else { continue }
-            if Self.excludedTree(fileURL, enumerator: enumerator, policy: exclusionPolicy) {
-                continue
-            }
-            guard Self.shouldInclude(
-                fileURL: fileURL,
-                root: root,
-                includedSubfolderPaths: includedSubfolderPaths
-            ) else { continue }
-
-            let values = try? fileURL.resourceValues(forKeys: keys)
-            guard values?.isRegularFile == true else { continue }
-            guard let kind = mediaKind(for: values?.contentType, url: fileURL, documentExtensions: documentExtensions),
-                  kinds.contains(kind) else { continue }
-            if exclusionPolicy.isBlockedSource(fileURL) != nil { continue }
-
-            filesSeen += 1
-            if filesSeen == 1 || filesSeen % 20 == 0 {
-                let count = filesSeen
-                let name = fileURL.lastPathComponent
-                if let progress {
-                    await MainActor.run { progress(count, name) }
-                }
-            }
-
-            let modDate = values?.contentModificationDate
-            let created = values?.creationDate
-            let hash = contentHash(path: fileURL.path, modified: modDate)
-
-            results.append(DiscoveredMedia(
-                id: stableID(for: fileURL),
-                url: fileURL,
-                kind: kind,
-                sourceKind: .folder,
-                sourceLabel: sourceLabel,
-                fileSize: values?.fileSize.map { Int64($0) },
-                contentHash: hash,
-                createdAt: created,
-                modifiedAt: modDate
+            guard let enumerator else { return 0 }
+            urls = AnySequence(enumerator.lazy.compactMap { $0 as? URL })
+        } else {
+            enumerator = nil
+            urls = AnySequence(try FileManager.default.contentsOfDirectory(
+                at: root,
+                includingPropertiesForKeys: Array(Self.resourceKeys),
+                options: [.skipsHiddenFiles]
             ))
         }
 
-        if let progress {
-            let total = results.count
-            await MainActor.run { progress(total, root.lastPathComponent) }
-        }
-        return results
-    }
-
-    private func scanFolderRootOnly(
-        at root: URL,
-        sourceLabel: String,
-        runControl: IndexingRunControl?,
-        kinds: Set<MediaKind>,
-        documentExtensions: Set<String>,
-        progress: (@Sendable @MainActor (Int, String) -> Void)?
-    ) async throws -> [DiscoveredMedia] {
-        let keys: Set<URLResourceKey> = [
-            .isRegularFileKey,
-            .contentModificationDateKey,
-            .creationDateKey,
-            .fileSizeKey,
-            .contentTypeKey,
-        ]
-        let urls = try FileManager.default.contentsOfDirectory(
-            at: root,
-            includingPropertiesForKeys: Array(keys),
-            options: [.skipsHiddenFiles]
-        )
-        var results: [DiscoveredMedia] = []
-        var filesSeen = 0
         for fileURL in urls {
             try Task.checkCancellation()
             if let runControl {
                 try await runControl.checkpoint()
                 guard await runControl.shouldContinueScan() else { break }
             }
-            let values = try? fileURL.resourceValues(forKeys: keys)
-            guard values?.isRegularFile == true else { continue }
-            guard let kind = mediaKind(for: values?.contentType, url: fileURL, documentExtensions: documentExtensions),
-                  kinds.contains(kind) else { continue }
-            if exclusionPolicy.isBlockedSource(fileURL) != nil { continue }
-            filesSeen += 1
-            if filesSeen == 1 || filesSeen % 20 == 0, let progress {
-                let count = filesSeen
-                let name = fileURL.lastPathComponent
+            let values = try? fileURL.resourceValues(forKeys: Self.resourceKeys)
+            if values?.isDirectory == true {
+                if let enumerator, exclusionPolicy.skipReason(forDirectory: fileURL) != nil {
+                    enumerator.skipDescendants()
+                    ScanStats.shared.recordSkippedTree()
+                }
+                continue
+            }
+            if includeSubfolders,
+               !Self.shouldInclude(fileURL: fileURL, root: root, includedSubfolderPaths: includedSubfolderPaths) {
+                continue
+            }
+            guard let media = makeMedia(fileURL, values: values, sourceLabel: sourceLabel, kinds: kinds, documentExtensions: documentExtensions) else { continue }
+
+            batch.append(media)
+            seen += 1
+            lastName = fileURL.lastPathComponent
+            if let progress, seen == 1 || seen % 50 == 0 {
+                let count = seen
+                let name = lastName
                 await MainActor.run { progress(count, name) }
             }
-            let modDate = values?.contentModificationDate
-            results.append(DiscoveredMedia(
-                id: stableID(for: fileURL),
-                url: fileURL,
-                kind: kind,
-                sourceKind: .folder,
-                sourceLabel: sourceLabel,
-                fileSize: values?.fileSize.map { Int64($0) },
-                contentHash: contentHash(path: fileURL.path, modified: modDate),
-                createdAt: values?.creationDate,
-                modifiedAt: modDate
-            ))
+            if batch.count >= batchSize {
+                try await onBatch(batch)
+                sent += batch.count
+                batch.removeAll(keepingCapacity: true)
+            }
+        }
+        if !batch.isEmpty {
+            try await onBatch(batch)
+            sent += batch.count
         }
         if let progress {
-            let total = results.count
-            await MainActor.run { progress(total, root.lastPathComponent) }
+            let total = sent
+            let name = root.lastPathComponent
+            await MainActor.run { progress(total, name) }
         }
-        return results
+        return sent
     }
 
-    public func scanFolder(at root: URL, sourceLabel: String, includeSubfolders: Bool = true) throws -> [DiscoveredMedia] {
-        if !includeSubfolders {
-            return try scanFolderRootOnlySync(at: root, sourceLabel: sourceLabel)
-        }
-        let keys: Set<URLResourceKey> = [
-            .isRegularFileKey,
-            .contentModificationDateKey,
-            .creationDateKey,
-            .fileSizeKey,
-            .contentTypeKey,
-        ]
-        guard let enumerator = FileManager.default.enumerator(
-            at: root,
-            includingPropertiesForKeys: Array(keys),
-            options: [.skipsHiddenFiles, .skipsPackageDescendants]
-        ) else { return [] }
-
-        var results: [DiscoveredMedia] = []
-        while let element = enumerator.nextObject() {
-            guard let fileURL = element as? URL else { continue }
-            if Self.excludedTree(fileURL, enumerator: enumerator, policy: exclusionPolicy) {
-                continue
+    /// Synchronous walk used by the in-memory helper and tests.
+    private func forEachCandidate(
+        root: URL,
+        includeSubfolders: Bool,
+        includedSubfolderPaths: [String]?,
+        _ body: (URL, URLResourceValues?) throws -> Bool
+    ) throws {
+        if includeSubfolders {
+            guard let enumerator = FileManager.default.enumerator(
+                at: root,
+                includingPropertiesForKeys: Array(Self.resourceKeys),
+                options: [.skipsHiddenFiles, .skipsPackageDescendants]
+            ) else { return }
+            while let element = enumerator.nextObject() {
+                guard let fileURL = element as? URL else { continue }
+                let values = try? fileURL.resourceValues(forKeys: Self.resourceKeys)
+                if values?.isDirectory == true {
+                    if exclusionPolicy.skipReason(forDirectory: fileURL) != nil {
+                        enumerator.skipDescendants()
+                        ScanStats.shared.recordSkippedTree()
+                    }
+                    continue
+                }
+                guard Self.shouldInclude(fileURL: fileURL, root: root, includedSubfolderPaths: includedSubfolderPaths) else { continue }
+                if try !body(fileURL, values) { return }
             }
-            let values = try? fileURL.resourceValues(forKeys: keys)
-            guard values?.isRegularFile == true else { continue }
-            guard let kind = mediaKind(for: values?.contentType, url: fileURL) else { continue }
-            if exclusionPolicy.isBlockedSource(fileURL) != nil { continue }
-            let modDate = values?.contentModificationDate
-            results.append(DiscoveredMedia(
-                id: stableID(for: fileURL),
-                url: fileURL,
-                kind: kind,
-                sourceKind: .folder,
-                sourceLabel: sourceLabel,
-                fileSize: values?.fileSize.map { Int64($0) },
-                contentHash: contentHash(path: fileURL.path, modified: modDate),
-                createdAt: values?.creationDate,
-                modifiedAt: modDate
-            ))
+        } else {
+            let urls = try FileManager.default.contentsOfDirectory(
+                at: root,
+                includingPropertiesForKeys: Array(Self.resourceKeys),
+                options: [.skipsHiddenFiles]
+            )
+            for fileURL in urls {
+                if try !body(fileURL, try? fileURL.resourceValues(forKeys: Self.resourceKeys)) { return }
+            }
         }
-        return results
     }
 
-    private func scanFolderRootOnlySync(at root: URL, sourceLabel: String) throws -> [DiscoveredMedia] {
-        let keys: Set<URLResourceKey> = [
-            .isRegularFileKey,
-            .contentModificationDateKey,
-            .creationDateKey,
-            .fileSizeKey,
-            .contentTypeKey,
-        ]
-        let urls = try FileManager.default.contentsOfDirectory(
-            at: root,
-            includingPropertiesForKeys: Array(keys),
-            options: [.skipsHiddenFiles]
+    /// Metadata only. `lstat` tells a cloud placeholder apart without reading (and so downloading) it.
+    private func makeMedia(
+        _ fileURL: URL,
+        values: URLResourceValues?,
+        sourceLabel: String,
+        kinds: Set<MediaKind>,
+        documentExtensions: Set<String>
+    ) -> DiscoveredMedia? {
+        guard values?.isRegularFile == true else { return nil }
+        guard let kind = mediaKind(for: values?.contentType, url: fileURL, documentExtensions: documentExtensions),
+              kinds.contains(kind) else { return nil }
+        let modDate = values?.contentModificationDate
+        return DiscoveredMedia(
+            id: stableID(for: fileURL),
+            url: fileURL,
+            kind: kind,
+            sourceKind: .folder,
+            sourceLabel: sourceLabel,
+            fileSize: values?.fileSize.map { Int64($0) },
+            contentHash: contentHash(path: fileURL.path, modified: modDate),
+            createdAt: values?.creationDate,
+            modifiedAt: modDate,
+            isCloudOnly: CloudFileState.isDataless(fileURL)
         )
-        var results: [DiscoveredMedia] = []
-        for fileURL in urls {
-            let values = try? fileURL.resourceValues(forKeys: keys)
-            guard values?.isRegularFile == true else { continue }
-            guard let kind = mediaKind(for: values?.contentType, url: fileURL) else { continue }
-            if exclusionPolicy.isBlockedSource(fileURL) != nil { continue }
-            let modDate = values?.contentModificationDate
-            results.append(DiscoveredMedia(
-                id: stableID(for: fileURL),
-                url: fileURL,
-                kind: kind,
-                sourceKind: .folder,
-                sourceLabel: sourceLabel,
-                fileSize: values?.fileSize.map { Int64($0) },
-                contentHash: contentHash(path: fileURL.path, modified: modDate),
-                createdAt: values?.creationDate,
-                modifiedAt: modDate
-            ))
-        }
-        return results
     }
 
     /// One file, no directory walk. Used when a watched folder reports a change.
@@ -294,7 +276,8 @@ public struct MediaScanner: Sendable {
             fileSize: values?.fileSize.map { Int64($0) },
             contentHash: contentHash(path: fileURL.path, modified: modDate),
             createdAt: values?.creationDate,
-            modifiedAt: modDate
+            modifiedAt: modDate,
+            isCloudOnly: CloudFileState.isDataless(fileURL)
         )
     }
 
@@ -313,21 +296,6 @@ public struct MediaScanner: Sendable {
         if audioExts.contains(ext) { return .audio }
         if DocumentFormats.isDocument(url: url, allowed: documentExtensions) { return .document }
         return nil
-    }
-
-    private static func excludedTree(
-        _ url: URL,
-        enumerator: FileManager.DirectoryEnumerator,
-        policy: ScanExclusionPolicy
-    ) -> Bool {
-        var isDir: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue else {
-            return false
-        }
-        guard policy.skipReason(forDirectory: url) != nil else { return false }
-        enumerator.skipDescendants()
-        ScanStats.shared.recordSkippedTree()
-        return true
     }
 
     private func stableID(for url: URL) -> String {
@@ -360,4 +328,9 @@ public struct MediaScanner: Sendable {
             dir == selected || dir.hasPrefix(selected + "/")
         }
     }
+}
+
+private actor BatchCollector {
+    private(set) var items: [DiscoveredMedia] = []
+    func append(_ batch: [DiscoveredMedia]) { items.append(contentsOf: batch) }
 }

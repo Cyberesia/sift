@@ -39,7 +39,7 @@ public final class ClusterEngine {
             }
         }
 
-        let dismissed = Set(UserDefaults.standard.stringArray(forKey: "sift.dismissedCollectionIDs") ?? [])
+        let dismissed = Set(SiftRuntime.defaults.stringArray(forKey: "sift.dismissedCollectionIDs") ?? [])
 
         for (index, cluster) in clusters.enumerated() {
             let clusterID = "trip-\(index)"

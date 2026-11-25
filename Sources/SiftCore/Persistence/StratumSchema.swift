@@ -72,6 +72,8 @@ public final class MediaAssetRecord {
     /// Folder name of a transfer the user undid. The next plan holds the file instead of repeating it.
     public var undoneFolder: String?
     public var evidenceVersion: Int = 0
+    /// Contents are in iCloud only. Previews, Vision, CLIP and document reading wait until the file is downloaded.
+    public var isCloudOnly: Bool = false
 
     public init(
         id: String,
@@ -324,8 +326,8 @@ public final class StratumCollectionRecord {
 public enum StratumSchema {
     private static let log = Logger(subsystem: "ai.cyclones.sift", category: "SwiftData")
     /// Bump when schema changes so a corrupt prior store is not reopened.
-    private static let storeName = "SiftIndex-v4"
-    private static let schema = Schema([
+    private static var storeName: String { SiftRuntime.catalogStoreName }
+    static let schema = Schema([
         IndexedSource.self,
         MediaAssetRecord.self,
         StratumCollectionRecord.self,

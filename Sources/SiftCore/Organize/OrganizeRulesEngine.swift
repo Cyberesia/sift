@@ -21,8 +21,8 @@ public final class OrganizeRulesEngine {
     private let store: MediaIndexStore
 
     public var autoApplyEnabled: Bool {
-        get { UserDefaults.standard.bool(forKey: "sift.autoApplyOrganizeRules") }
-        set { UserDefaults.standard.set(newValue, forKey: "sift.autoApplyOrganizeRules") }
+        get { SiftRuntime.defaults.bool(forKey: "sift.autoApplyOrganizeRules") }
+        set { SiftRuntime.defaults.set(newValue, forKey: "sift.autoApplyOrganizeRules") }
     }
 
     public init(store: MediaIndexStore) {

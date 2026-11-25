@@ -1,5 +1,6 @@
 #if os(macOS)
 import AppKit
+import Combine
 import SiftCore
 import SiftDesign
 import SwiftUI
@@ -16,6 +17,7 @@ final class SiftIslandController {
     private var windowObservers: [NSObjectProtocol] = []
     private var mouseMonitor: Any?
     private var globalMouseMonitor: Any?
+    private var appearanceObserver: AnyCancellable?
 
     func install(
         jobs: BackgroundJobCenter,
@@ -124,15 +126,24 @@ final class SiftIslandController {
         let hosting = SiftNotchHostingView(rootView: root)
         let panel = makePanel()
         panel.contentView = hosting
+        // The rail is its own window: give it Sift's light or dark choice, not only the Mac's.
+        appearanceObserver = PrismAppearanceStore.shared.$mode
+            .sink { [weak panel] mode in
+                switch mode {
+                case .system: panel?.appearance = nil
+                case .light: panel?.appearance = NSAppearance(named: .aqua)
+                case .dark: panel?.appearance = NSAppearance(named: .darkAqua)
+                }
+            }
         self.hosting = hosting
         self.panel = panel
-        let savedEdge = UserDefaults.standard.string(forKey: edgeKey)
+        let savedEdge = SiftRuntime.defaults.string(forKey: edgeKey)
         if savedEdge == nil || savedEdge == "top" {
-            UserDefaults.standard.set("right", forKey: edgeKey)
+            SiftRuntime.defaults.set("right", forKey: edgeKey)
         }
         applyFrame()
         panel.orderFrontRegardless()
-        UserDefaults.standard.removeObject(forKey: "sift.notchWish")
+        SiftRuntime.defaults.removeObject(forKey: "sift.notchWish")
         startWatchingWindows()
         startWatchingMouse()
         refreshVisibility()
@@ -235,16 +246,16 @@ final class SiftIslandController {
     }
 
     private var alongOffset: CGFloat {
-        CGFloat(UserDefaults.standard.double(forKey: offsetKey))
+        CGFloat(SiftRuntime.defaults.double(forKey: offsetKey))
     }
 
     private func setAlongOffset(_ value: CGFloat) {
-        UserDefaults.standard.set(Double(value), forKey: offsetKey)
+        SiftRuntime.defaults.set(Double(value), forKey: offsetKey)
         applyFrame()
     }
 
     private var edge: String {
-        UserDefaults.standard.string(forKey: edgeKey) ?? "right"
+        SiftRuntime.defaults.string(forKey: edgeKey) ?? "right"
     }
 
     private func applyFrame(animated: Bool = false) {

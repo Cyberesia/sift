@@ -97,7 +97,7 @@ private struct MediaListRow: View {
         .padding(.vertical, 10)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(.white.opacity(isHovered ? 0.1 : 0))
+                .fill(PrismTheme.wash.opacity(isHovered ? 0.1 : 0))
         )
         .animation(PrismMotion.quick, value: isHovered)
     }

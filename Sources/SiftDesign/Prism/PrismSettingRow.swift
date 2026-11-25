@@ -59,10 +59,10 @@ public struct PrismSettingRow<Trailing: View, Body: View>: View {
         .padding(10)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(.white.opacity(0.06))
+                .fill(PrismTheme.wash.opacity(0.06))
                 .overlay(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(.white.opacity(0.08), lineWidth: 1)
+                        .strokeBorder(PrismTheme.wash.opacity(0.08), lineWidth: 1)
                 )
         )
     }

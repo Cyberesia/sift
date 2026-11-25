@@ -57,7 +57,7 @@ public struct CatalogStructureWizard: View {
                         .padding(12)
                         .background(
                             RoundedRectangle(cornerRadius: 12)
-                                .fill(on ? PrismTheme.accentSoft : Color.white.opacity(0.06))
+                                .fill(on ? PrismTheme.accentSoft : PrismTheme.wash.opacity(0.06))
                         )
                     }
                     .buttonStyle(.plain)

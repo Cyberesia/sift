@@ -110,12 +110,12 @@ public enum ScanSessionStore {
     public static func save(skippedTrees: Int) {
         let record = Record(skippedTrees: skippedTrees, updatedAt: Date())
         if let data = try? JSONEncoder().encode(record) {
-            UserDefaults.standard.set(data, forKey: key)
+            SiftRuntime.defaults.set(data, forKey: key)
         }
     }
 
     public static func load() -> Record? {
-        guard let data = UserDefaults.standard.data(forKey: key) else { return nil }
+        guard let data = SiftRuntime.defaults.data(forKey: key) else { return nil }
         return try? JSONDecoder().decode(Record.self, from: data)
     }
 }

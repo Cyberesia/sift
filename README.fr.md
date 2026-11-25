@@ -53,6 +53,20 @@ Les fichiers restent où ils sont tant que vous ne décidez pas le contraire.
 
 </details>
 
+<p align="center">
+  <a href="https://assets.aisance.cloud/sift/sift-demo.mp4?v=2"><img src="https://assets.aisance.cloud/sift/sift-demo-poster.jpg?v=2" alt="Vidéo de démonstration de Sift" width="820"></a>
+  <br/>
+  <sub>▶ <a href="https://assets.aisance.cloud/sift/sift-demo.mp4?v=2">Voir la visite de 1 min 46 : configuration, scan, bibliothèque, règle de dossier et réglages.</a></sub>
+</p>
+
+| Premier lancement | Lecture des fichiers | Bibliothèque |
+| :--: | :--: | :--: |
+| <img src="https://assets.aisance.cloud/sift/screens/setup-welcome.jpg?v=2" width="270" alt="Premier lancement"> | <img src="https://assets.aisance.cloud/sift/screens/setup-reading.jpg?v=2" width="270" alt="Lecture des fichiers"> | <img src="https://assets.aisance.cloud/sift/screens/library-photos.jpg?v=2" width="270" alt="Bibliothèque"> |
+| **Règles de dossier** | **Réglages** | |
+| <img src="https://assets.aisance.cloud/sift/screens/rules.jpg?v=2" width="270" alt="Règles de dossier"> | <img src="https://assets.aisance.cloud/sift/screens/settings.jpg?v=2" width="270" alt="Réglages"> | |
+
+<sub>Photos de démonstration Unsplash, créditées dans [docs/demo-credits.md](./docs/demo-credits.md). Aucun vrai fichier n’apparaît dans la vidéo.</sub>
+
 ## 👋🏻 Pour commencer
 
 Sift est une app macOS pour qui veut un catalogue cherchable sans réorganisation silencieuse du disque. Photos, vidéos, musiques et certains documents sont indexés là où ils vivent déjà. Un plan d’organisation est un aperçu. Rien n’est copié ni déplacé tant que vous ne l’approuvez pas.
@@ -67,6 +81,14 @@ La compréhension tourne sur l’appareil : Apple Vision, et un modèle CLIP inc
 <br/>
 
 ## ✨ Fonctions
+
+### Premier lancement
+
+Une configuration en six étapes s’ouvre au premier lancement : langue et apparence, dossiers à cataloguer (Images, Téléchargements, Bureau… un clic chacun), le dossier où ranger, qui lit les fichiers pour les règles, des règles prêtes pour Téléchargements, puis une page de démarrage. Chaque étape peut être passée ; relancez-la depuis les Réglages.
+
+### Apparence et langue
+
+Six skins (Citadel, Ocean, Forest, Dune, Orchid, Graphite), clair, sombre ou comme le Mac, et quatre tailles d’interface. L’interface parle anglais et français ; les écrans pas encore traduits restent en anglais, et [les traductions sont bienvenues](./CONTRIBUTING.md#translations). Les Réglages s’ouvrent par-dessus la fenêtre, avec une barre latérale et un bouton Retour.
 
 ### Découvrir
 
@@ -95,6 +117,32 @@ Trois étapes, et rien ne part avant le dernier bouton.
 3. **Relecture** — les fichiers en attente, ceux déjà dans le dossier, et les originaux qui ont encore une copie sont comptés à part.
 
 Vous pouvez activer les dossiers vides à créer (Photos, Videos, Music & Audio, et les autres) avant qu’un fichier ne bouge. Les transferts récents peuvent être annulés dans Réglages quand le chemin d’origine existe encore.
+
+### Règles
+
+Une règle se lit comme un court bloc, une ligne colorée par partie : *quand un nouveau fichier arrive dans **Downloads** et **c’est un PDF*** ; ***Sift** le lit pour vérifier que c’est **une facture ou un reçu** et note **vendor**, **date**, **amount*** ; *le renommer en **{vendor} {date}*** ; *le ranger dans **Sorted › Factures › {year}***. Cliquez une valeur colorée pour la changer. Ajoutez une condition ou une étape pour aller plus loin, y compris des étiquettes Finder et libérer l’espace une fois le fichier dans iCloud Drive.
+
+Des modèles couvrent factures, contrats, fiches de paie, relevés bancaires, captures, installeurs et grosses vidéos ; chaque règle se modifie, se réordonne ou se supprime, et vous pouvez décrire les vôtres. Les règles sont vérifiées de haut en bas et seule la première qui convient agit sur un fichier. Avant d’activer une règle, Sift liste les fichiers déjà présents et ce qui arriverait à chacun. Les nouveaux fichiers retenus attendent dans **À valider**, ou sont rangés seuls ; l’**Historique** liste chaque changement avec Annuler. Les règles tournent tant que Sift est ouvert, y compris depuis la barre de menus fenêtre fermée.
+
+Qui lit les fichiers, c’est vous qui choisissez, dans Réglages › Who reads files for rules :
+
+| Lecteur | Où va le texte |
+| :-- | :-- |
+| Sift sur ce Mac (par défaut) | Nulle part. Mots-clés, dates et montants trouvés par Sift |
+| Apple Intelligence | Nulle part. Modèle Apple sur l’appareil, macOS 26 |
+| Modèle local : Ollama, LM Studio, MLX (`mlx_lm.server`), llama.cpp | Votre serveur. Sur `localhost`, nulle part |
+| Claude, avec votre clé API Anthropic | Anthropic : le nom du fichier et jusqu’à 6 000 caractères du début du texte |
+| Jev | Jev : seulement la question oui/non |
+
+La phrase de la règle nomme toujours le lecteur, avec un cadenas quand rien ne quitte le Mac. Si le lecteur choisi n’est pas configuré ou échoue, Sift lit le fichier lui-même et le dit ; une règle réglée pour ranger tout de suite attend alors votre accord.
+
+### Grandes bibliothèques et iCloud
+
+Sift ne télécharge jamais un fichier d’iCloud Drive pour le regarder. Les fichiers restés dans le cloud (iCloud Drive, Optimiser le stockage, autres dossiers cloud) sont catalogués d’après leur nom, leur taille et leurs dates, et marqués comme dans iCloud. Aperçus, Vision, CLIP, documents et règles attendent que le fichier soit sur le Mac. Un réglage au niveau du processus le garantit : une lecture qui téléchargerait un fichier échoue à la place.
+
+Les scans se font en flux : les fichiers entrent au catalogue par lots de 500, donc un disque de 2 To ne tient jamais en mémoire sous forme d’une seule liste. Un lot ne contient que des métadonnées, environ 1 Ko par fichier, quelle que soit sa taille. Les lecteurs qui chargent un contenu respectent un budget mémoire : 5 % de la RAM, au plus la moitié de la mémoire libre, entre 64 Mo et 1 Go par fichier. Vidéos et audio sont lus par petits morceaux et ne comptent jamais pour leur taille entière.
+
+Fenêtre au premier plan, Sift travaille à pleine vitesse. Dans la seule barre de menus, il passe sur les cœurs efficacité, espace les fichiers, et se met en pause quand le Mac chauffe, en mode Économie d’énergie, ou quand la mémoire manque. Les changements de dossier qui arrivent pendant un scan sont mis en file, pas perdus.
 
 ### Notch
 
@@ -172,6 +220,8 @@ L’indexation, Vision, CLIP et la lecture des documents tournent sur ce Mac.
 | Premières lignes, titres, noms de feuilles et en-têtes de colonnes | Seulement pendant l’indexation, si une clé Jev est enregistrée |
 | Tags de documents, noms de fichiers, et une requête | Seulement si une clé Jev est enregistrée et que vous appuyez sur Entrée |
 | Labels CLIP / Vision | Utilisés localement. Une courte liste peut accompagner cette même question Entrée |
+| Début du texte d’un fichier lu par une règle | Seulement si vous avez choisi Claude, Jev ou un modèle sur une autre machine comme lecteur |
+| Fichiers seulement dans iCloud | Jamais téléchargés par Sift. Catalogués d’après leurs métadonnées |
 
 Sans clé, ou si la réponse est peu sûre, le résultat local reste. Les réglages décrivent la même limite.
 

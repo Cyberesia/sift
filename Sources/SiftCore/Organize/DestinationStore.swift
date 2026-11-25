@@ -102,14 +102,14 @@ public final class DestinationStore: ObservableObject {
     public func removeAll() {
         destinations = []
         activeDestinationID = nil
-        UserDefaults.standard.removeObject(forKey: destinationsKey)
-        UserDefaults.standard.removeObject(forKey: activeIDKey)
+        SiftRuntime.defaults.removeObject(forKey: destinationsKey)
+        SiftRuntime.defaults.removeObject(forKey: activeIDKey)
     }
 
     public func setActive(id: String) {
         guard destinations.contains(where: { $0.id == id }) else { return }
         activeDestinationID = id
-        UserDefaults.standard.set(id, forKey: activeIDKey)
+        SiftRuntime.defaults.set(id, forKey: activeIDKey)
     }
 
     public func resolve(_ bookmark: DestinationBookmark) throws -> URL {
@@ -212,14 +212,15 @@ public final class DestinationStore: ObservableObject {
 
     #if os(macOS)
     @MainActor
-    public static func pickFolder() async -> URL? {
+    public static func pickFolder(startingAt directory: URL? = nil, message: String? = nil) async -> URL? {
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         panel.canCreateDirectories = true
-        panel.message = "Choose the folder files should go inside. Sift will not put them in the folder above it."
+        panel.message = message ?? "Choose the folder files should go inside. Sift will not put them in the folder above it."
         panel.prompt = "Use this folder"
+        if let directory { panel.directoryURL = directory }
         let response = await panel.begin()
         guard response == .OK, let url = panel.url else { return nil }
         return url
@@ -227,11 +228,11 @@ public final class DestinationStore: ObservableObject {
     #endif
 
     private func load() {
-        if let data = UserDefaults.standard.data(forKey: destinationsKey),
+        if let data = SiftRuntime.defaults.data(forKey: destinationsKey),
            let decoded = try? JSONDecoder().decode([DestinationBookmark].self, from: data) {
             destinations = decoded
         }
-        activeDestinationID = UserDefaults.standard.string(forKey: activeIDKey)
+        activeDestinationID = SiftRuntime.defaults.string(forKey: activeIDKey)
         if let activeDestinationID,
            !destinations.contains(where: { $0.id == activeDestinationID }) {
             self.activeDestinationID = destinations.first?.id
@@ -240,27 +241,27 @@ public final class DestinationStore: ObservableObject {
 
     private func persist() {
         if let data = try? JSONEncoder().encode(destinations) {
-            UserDefaults.standard.set(data, forKey: destinationsKey)
+            SiftRuntime.defaults.set(data, forKey: destinationsKey)
         }
         if let activeDestinationID {
-            UserDefaults.standard.set(activeDestinationID, forKey: activeIDKey)
+            SiftRuntime.defaults.set(activeDestinationID, forKey: activeIDKey)
         } else {
-            UserDefaults.standard.removeObject(forKey: activeIDKey)
+            SiftRuntime.defaults.removeObject(forKey: activeIDKey)
         }
     }
 
     private func migrateLegacyDestinationIfNeeded() {
         guard destinations.isEmpty,
-              let path = UserDefaults.standard.string(forKey: legacyURLKey) else { return }
+              let path = SiftRuntime.defaults.string(forKey: legacyURLKey) else { return }
         let url = URL(fileURLWithPath: path)
         if FileManager.default.fileExists(atPath: path) {
             _ = try? add(url: url)
         }
-        UserDefaults.standard.removeObject(forKey: legacyURLKey)
+        SiftRuntime.defaults.removeObject(forKey: legacyURLKey)
     }
 
     /// Stores a resolved path for one-time migration from older builds that only kept URL in memory.
     public static func recordLegacyDestinationPath(_ path: String) {
-        UserDefaults.standard.set(path, forKey: "sift.legacyDestinationPath")
+        SiftRuntime.defaults.set(path, forKey: "sift.legacyDestinationPath")
     }
 }

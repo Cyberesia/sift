@@ -32,7 +32,7 @@ public enum OrganizeRulesStore {
     private static let key = "sift.organizeRules"
 
     public static func load() -> [OrganizeRule] {
-        guard let data = UserDefaults.standard.data(forKey: key),
+        guard let data = SiftRuntime.defaults.data(forKey: key),
               let rules = try? JSONDecoder().decode([OrganizeRule].self, from: data) else {
             return defaultRules()
         }
@@ -41,7 +41,7 @@ public enum OrganizeRulesStore {
 
     public static func save(_ rules: [OrganizeRule]) {
         guard let data = try? JSONEncoder().encode(rules) else { return }
-        UserDefaults.standard.set(data, forKey: key)
+        SiftRuntime.defaults.set(data, forKey: key)
     }
 
     public static func defaultRules() -> [OrganizeRule] {
