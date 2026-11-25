@@ -21,6 +21,12 @@ Le détail anglais est dans [RELEASE.md](./RELEASE.md).
 open .build/distribution/Sift.dmg
 ```
 
+Si la copie est dans un dossier synchronisé avec iCloud (Documents, Bureau), construisez ailleurs, sinon codesign refuse les attributs qu’iCloud ajoute :
+
+```bash
+DIST_DIR=~/Library/Caches/sift-dist ./Scripts/package-direct.sh
+```
+
 Le script compile le binaire de release, l’enveloppe dans `Sift.app`, copie `Info.plist`, et écrit `.build/distribution/Sift.dmg`. L’image disque s’appelle `Sift` plus la version de `Info.plist` (`Sift 0.2.0`) et contient l’app plus un raccourci vers Applications. L’identifiant du bundle est `ai.cyclones.sift` par défaut.
 
 ## Signer (optionnel, en local)

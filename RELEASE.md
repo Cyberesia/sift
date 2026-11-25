@@ -19,6 +19,12 @@ The day-to-day build is a Swift package. A shareable build is `Sift.app` inside 
 open .build/distribution/Sift.dmg
 ```
 
+If the checkout is in an iCloud-synced folder (Documents, Desktop), build outside it, or codesign refuses the attributes iCloud adds:
+
+```bash
+DIST_DIR=~/Library/Caches/sift-dist ./Scripts/package-direct.sh
+```
+
 The script builds the release binary, wraps it as `Sift.app`, copies `Info.plist`, and writes `.build/distribution/Sift.dmg`. The disk image is named `Sift` plus the version in `Info.plist` (`Sift 0.2.0`) and contains the app plus a shortcut to Applications. The bundle identifier defaults to `ai.cyclones.sift`.
 
 ## Sign (optional, local)
