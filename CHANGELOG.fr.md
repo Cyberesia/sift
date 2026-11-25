@@ -7,17 +7,17 @@ Le détail anglais est dans [CHANGELOG.md](./CHANGELOG.md).
 
 ## [Non publié]
 
+## [0.2.0] - 2026-11-25
+
 ### Ajouté
 
-- **Règles, deuxième version.** Les règles se lisent comme un court bloc, une ligne colorée par partie (quand, lecture, nom, rangement, étiquettes), dans une seule taille de texte. Elles sont vérifiées de haut en bas et seule la première qui convient agit sur un fichier. Nouvelles étapes : étiquettes Finder, et libérer l’espace une fois dans iCloud Drive. Nouveaux modèles : contrats, fiches de paie, relevés bancaires et grosses vidéos. À valider et Historique remplacent En attente et Activité.
-- **Configuration au premier lancement** : langue et apparence, dossiers à cataloguer en un clic, une destination, qui lit les fichiers (Sift, Apple Intelligence, modèle local ou d’entreprise, Claude), des règles prêtes pour Téléchargements, et une page de démarrage vers les tâches principales.
+- **Règles de dossier.** Une règle se lit comme un court bloc, une ligne colorée par partie : quand un nouveau fichier arrive dans un dossier (avec des conditions sur le nom, le type ou la taille), qui le lit et ce qu’il doit être (avec des valeurs à noter, comme fournisseur, date ou montant), le nouveau nom d’après un modèle comme `{vendor} {date}`, le dossier où il va comme `Factures/{year}`, et des étiquettes Finder. Des modèles pour factures, captures et installeurs, plus contrats, fiches de paie, relevés bancaires et grosses vidéos ; ou décrire une règle pour que le lecteur choisi la rédige. Les règles sont vérifiées de haut en bas et seule la première qui convient agit sur un fichier. Avant d’activer une règle, Sift liste les fichiers déjà présents et ce qui arriverait à chacun. Les nouveaux fichiers retenus attendent dans À valider ou sont rangés seuls ; l’Historique liste chaque changement avec Annuler. Les téléchargements en cours sont laissés tranquilles jusqu’à ce que leur taille se stabilise, et un fichier rangé dans iCloud Drive peut libérer son espace local une fois envoyé.
+- **Qui lit les fichiers pour les règles**, dans les Réglages : la lecture de Sift sur l’appareil (par défaut), Apple Intelligence (macOS 26), un modèle local ou d’entreprise via Ollama, LM Studio, `mlx_lm.server`, llama.cpp ou tout point d’accès compatible OpenAI, Claude avec votre clé API Anthropic, ou Jev. Les clés sont dans le trousseau. Chaque règle et la barre de menus nomment le lecteur et disent si du texte quitte le Mac.
+- **Configuration au premier lancement** : langue et apparence, dossiers à cataloguer en un clic, une destination, qui lit les fichiers, des règles prêtes pour Téléchargements, et une page de démarrage vers les tâches principales. À relancer depuis les Réglages ou Sift › Configuration….
 - **Skins et apparence** : Citadel, Ocean, Forest, Dune, Orchid et Graphite ; clair, sombre ou comme le Mac ; quatre tailles d’interface.
 - **Réglage de langue** : comme le Mac, anglais ou français. Configuration, Réglages, Règles, noms des modes et aide sont traduits.
-
-- **Règles.** Des automatisations de dossier écrites comme une phrase : surveiller un dossier, vérifier nom, type ou taille, lire le fichier pour confirmer ce qu’il est et noter des valeurs, puis le renommer d’après un modèle et le ranger dans un sous-dossier comme `Invoices/{year}`. Modèles prêts, ou décrire la règle pour que le lecteur choisi la rédige. Un aperçu montre où irait chaque fichier avant d’allumer la règle. Les règles démarrent éteintes, peuvent attendre votre accord (Waiting) ou ranger tout de suite, et chaque déplacement est dans Activity avec Annuler. Les téléchargements en cours sont laissés tranquilles jusqu’à ce que leur taille se stabilise.
-- **Qui lit les fichiers pour les règles**, dans les Réglages : la lecture de Sift sur l’appareil (par défaut), Apple Intelligence (macOS 26), un modèle local via Ollama, LM Studio, `mlx_lm.server` ou llama.cpp, Claude avec votre clé API Anthropic, ou Jev. Les clés sont dans le trousseau. La phrase de la règle et la barre de menus nomment le lecteur et disent si du texte quitte le Mac.
-- **Mode démo** (`-siftDemo YES`) : réglages, catalogue, miniatures et règles séparés, pour que les vidéos ne montrent jamais de vrais fichiers.
-- La barre de menus affiche les règles allumées et les fichiers en attente.
+- La barre de menus affiche les règles actives et les fichiers à valider.
+- **Mode démo** (`-siftDemo YES` ou `SIFT_DEMO=1`) : réglages, catalogue, miniatures et règles séparés, pour que les captures ne montrent jamais de vrais fichiers.
 
 ### Modifié
 
@@ -111,7 +111,8 @@ Sift catalogue les photos, vidéos, audios et documents là où ils sont déjà.
 - **Mises à jour discrètes** — un changement dans un dossier enregistré ne vérifie que ces fichiers. Un parcours complet, par exemple de Téléchargements, n’a lieu que si vous choisissez Look again.
 - **Jev (optionnel)** — avec une clé enregistrée, Entrée peut ouvrir un écran ou choisir dans une courte liste. Sans clé, ou si la réponse est peu sûre, le résultat local reste. Les pixels et le texte des documents restent sur ce Mac.
 
-[Non publié]: https://github.com/Cyberesia/sift/compare/v0.1.4...HEAD
+[Non publié]: https://github.com/Cyberesia/sift/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Cyberesia/sift/releases/tag/v0.2.0
 [0.1.4]: https://github.com/Cyberesia/sift/releases/tag/v0.1.4
 [0.1.3]: https://github.com/Cyberesia/sift/releases/tag/v0.1.3
 [0.1.2]: https://github.com/Cyberesia/sift/releases/tag/v0.1.2

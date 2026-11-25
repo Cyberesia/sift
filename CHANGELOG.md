@@ -6,18 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-25
+
 ### Added
 
-- **Rules, second version.** Rules read as a short block, one coloured line per part (when, read, rename, put in, tag), all in one type size. Rules are checked top to bottom and only the first that fits a file acts on it (reorder from the ⋯ menu). New steps: Finder tags, and freeing up space once a file is in iCloud Drive. New starting points: contracts, payslips, bank statements and large videos, next to invoices, screenshots and installers. To review and History replace Waiting and Activity.
-- **First-run setup**: language and look, folders to catalog with one-click suggestions, a destination, who reads files (Sift, Apple Intelligence, a local or company model, Claude), ready-made Downloads rules, and a start page linking the main tasks. Reopen it from Settings or Sift › Run Setup….
+- **Folder rules.** A rule reads as a short block, one coloured line per part: when a new file arrives in a folder (with conditions on name, type or size), who reads it and what it should be (with values to note, such as vendor, date or amount), the new name from a pattern like `{vendor} {date}`, the folder it goes into like `Invoices/{year}`, and Finder tags. Starting points for invoices, screenshots and installers, plus contracts, payslips, bank statements and large videos; or describe a rule and the chosen reader drafts it. Rules are checked top to bottom and only the first that fits a file acts on it. Before a rule is on, Sift lists the files already in the folder and what would happen to each. New matches wait in To review or are filed on their own; History lists every change with Undo. Partial downloads are left alone until their size settles, and a moved file in iCloud Drive can free up its local space once uploaded.
+- **Who reads files for rules**, in Settings: Sift’s own on-device reading (default), Apple Intelligence (macOS 26), a local or company model through Ollama, LM Studio, `mlx_lm.server`, llama.cpp or any OpenAI-compatible endpoint, Claude with your Anthropic API key, or Jev. Keys live in the Keychain. Each rule and the menu bar name the reader and say whether text leaves the Mac.
+- **First-run setup**: language and look, folders to catalog with one-click suggestions, a destination, who reads files, ready-made Downloads rules, and a start page linking the main tasks. Reopen it from Settings or Sift › Run Setup….
 - **Skins and appearance**: Citadel, Ocean, Forest, Dune, Orchid and Graphite; light, dark or same as the Mac; four interface sizes.
 - **Language setting**: same as the Mac, English or French. Setup, Settings, Rules, mode names and help are translated.
-- **Demo mode** (`-siftDemo YES` or `SIFT_DEMO=1`): its own settings, catalog, thumbnails and rules, so recordings never show real files.
-- Debug builds accept `-siftSetup YES`, `-siftSetupStep N`, `-siftSettings <page>` and `-siftMode <mode>` for screenshots.
-
-- **Rules.** Folder automations written as a sentence: watch a folder, check name, type or size, read the file to confirm what it is and note values, then rename it from a template and move it into a destination subfolder such as `Invoices/{year}`. Templates, or describe a rule and the chosen reader drafts it. A preview shows where every file would go before the rule is on. Rules start off, can wait for you (Waiting) or file right away, and every move is in Activity with Undo. Partial downloads are left alone until their size settles.
-- **Who reads files for rules**, in Settings: Sift’s own on-device reading (default), Apple Intelligence (macOS 26), a local model through Ollama, LM Studio, `mlx_lm.server` or llama.cpp, Claude with your Anthropic API key (structured output, refusal fallbacks), or Jev. Keys live in the keychain. The rule sentence and the menu bar name the reader and whether text leaves the Mac.
-- Menu bar shows rules that are on, and files waiting, with File and Review.
+- The menu bar shows active rules and files to review.
+- **Demo mode** (`-siftDemo YES` or `SIFT_DEMO=1`): its own settings, catalog, thumbnails and rules, so screenshots never show real files. Debug builds also accept `-siftSetup YES`, `-siftSetupStep N`, `-siftSettings <page>` and `-siftMode <mode>`.
 
 ### Changed
 
@@ -111,7 +110,8 @@ Sift catalogs photos, video, audio, and documents where they already are. Nothin
 - **Quiet updates** — a change inside a saved folder checks those files. A full walk of a folder such as Downloads happens when you choose Look again.
 - **Jev (optional)** — with a key saved, Return can route a command or pick among a short list. No key, or a low-confidence answer, keeps the local result. Pixels and document text stay on this Mac.
 
-[Unreleased]: https://github.com/Cyberesia/sift/compare/v0.1.4...HEAD
+[Unreleased]: https://github.com/Cyberesia/sift/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Cyberesia/sift/releases/tag/v0.2.0
 [0.1.4]: https://github.com/Cyberesia/sift/releases/tag/v0.1.4
 [0.1.3]: https://github.com/Cyberesia/sift/releases/tag/v0.1.3
 [0.1.2]: https://github.com/Cyberesia/sift/releases/tag/v0.1.2
