@@ -30,6 +30,7 @@ Small, well-bounded work that helps right away:
 - **Add a rule template.** `FolderRuleTemplate` in `Sources/SiftCore/Rules/FolderRule.swift`, with a test in `Tests/SiftCoreTests/FolderRuleTests.swift`.
 - **Teach Sift's own reading a document type.** Keyword families live in `SiftJudge.keywords(for:)`; date and amount patterns in `LocalExtraction`. Every pattern needs a test.
 - **Add a skin.** One case and five colours in `PrismSkin` (`Sources/SiftDesign/Prism/PrismAppearance.swift`). Check it in light and dark.
+- **Windows.** Sift is Mac-only. The plan and what can be shared are in [Windows support](https://github.com/Cyberesia/sift/issues/4); comment there before starting.
 - **Light mode polish.** A few views still draw white on purpose over photos; others may not. Screenshots of what looks wrong are a useful issue on their own.
 
 ## Translations

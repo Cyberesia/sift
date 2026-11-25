@@ -8,6 +8,9 @@ Sift catalogs the photos, video, music, and documents already on your Mac.
 
 Files stay where they are until you say otherwise.
 
+> [!WARNING]
+> **Early release (0.2).** Sift has not been tested on every Mac or folder setup yet, and it will have bugs. Before relying on folder rules, keep them on **Ask me before filing**, try them on a test folder first, and keep a backup. Problems and surprises are welcome as [issues][github-issues-link].
+
 **English** · [Français](./README.fr.md) · [Changelog][changelog-link] · [Release guide][release-link] · [Attributions][attributions-link] · [Feedback][github-issues-link]
 
 <br/>

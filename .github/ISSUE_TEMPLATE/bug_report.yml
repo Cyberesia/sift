@@ -1,0 +1,74 @@
+name: Bug report
+description: Something in Sift does not work as expected.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing Sift. It is an early release, so every precise report helps.
+        Please do not paste private file names or contents. Security problems go to [SECURITY.md](https://github.com/Cyberesia/sift/blob/main/SECURITY.md), not here.
+  - type: input
+    id: sift-version
+    attributes:
+      label: Sift version
+      description: Sift › About Sift.
+      placeholder: "0.2.0 (6)"
+    validations:
+      required: true
+  - type: input
+    id: macos-version
+    attributes:
+      label: macOS version and Mac
+      placeholder: "macOS 26.1, MacBook Air M2, 16 GB"
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Folder rules
+        - Discover / scanning
+        - Library
+        - Organize
+        - Setup or Settings
+        - Reading files (AI provider)
+        - Menu bar or notch
+        - Something else
+    validations:
+      required: true
+  - type: checkboxes
+    id: storage
+    attributes:
+      label: Where the files are
+      options:
+        - label: On the Mac's own disk
+        - label: In iCloud Drive (Desktop & Documents included)
+        - label: On an external or network drive
+  - type: input
+    id: reader
+    attributes:
+      label: Who reads files for rules
+      description: Settings › Reading files. Leave empty if rules are not involved.
+      placeholder: "Sift on this Mac / Apple Intelligence / Ollama + model name / Claude / …"
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Turn on the "Invoices" rule for Downloads
+        2. Download a PDF invoice
+        3. …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and what happened
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots, crash report or anything else
+      description: A crash report is in Console › Crash Reports, named Sift-….ips. Roughly how many files the library holds also helps.
